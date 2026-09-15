@@ -1,0 +1,15 @@
+# Cargo and Tauri write here. Regenerable. Never commit.
+# A local ship folder once lived at target/lantern-v1.0.0/; what it held
+# is recorded in build/releases/README.md.
+/target/
+
+# npm workspaces (repo root and ui/)
+node_modules/
+
+# Bundled frontend output
+dist/
+
+# OS junk
+Thumbs.db
+Desktop.ini
+*.orig

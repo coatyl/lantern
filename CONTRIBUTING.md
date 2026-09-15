@@ -80,6 +80,20 @@ Any editor works. The maintainer set currently uses:
 
 A workspace settings file `.vscode/settings.json` is committed with sensible defaults.
 
+### 2.5 Build output (`target/` and `build/releases`)
+
+`target/` is Cargo and Tauri output at the repo root. Ignore it; do not commit it. Debug builds land in `target/debug/`, release builds and `lantern.exe` in `target/release/`, and bundled installers in `target/release/bundle/` when bundling is on.
+
+`build/releases/` is the written record of ship artefacts, not a second copy of `target/`. It names the files, sizes and SHA256 hashes for the 2026-05-06 v1.0.0 set that used to sit in `target/lantern-v1.0.0/`. Read [`build/releases/README.md`](build/releases/README.md) before treating any local `target/` folder as the release.
+
+The live clone URL while the repo is on Cursor Origin:
+
+```
+git clone https://origin.cursor.com/john-pork-corp/lantern.git
+```
+
+The `github.com/<org>/lantern` URL in this guide and in `README.md` is the public-flip placeholder.
+
 ## 3. Project tour
 
 Before you change anything, it helps to know where things live.
@@ -93,6 +107,7 @@ lantern/
 │   ├── lantern-app/      ← Tauri glue: commands, state, events, conf, icons
 │   └── lantern-cli/      ← optional headless CLI (deferred to v0.1.0)
 ├── ui/                   ← React + Tailwind UI (npm workspace member)
+├── build/releases/       ← hashes and notes for ship artefacts; not the binaries
 ├── fixtures/             ← real bookmark exports for tests
 └── CONTRIBUTING.md       ← this guide
 ```

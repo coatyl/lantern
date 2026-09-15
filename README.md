@@ -52,7 +52,7 @@ npm install
 npm run build
 ```
 
-The build produces `target/release/lantern.exe` plus an NSIS installer when `bundle.active = true`. For the offline-only flavour:
+The build produces `target/release/lantern.exe` plus an NSIS installer when `bundle.active = true`. `target/` is gitignored; what a release is supposed to contain, and the hashes of the 2026-05-06 v1.0.0 copies, live in [`build/releases/README.md`](build/releases/README.md). For the offline-only flavour:
 
 ```powershell
 cargo build --release -p lantern-app --no-default-features --locked
