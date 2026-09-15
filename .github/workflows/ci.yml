@@ -1,0 +1,272 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+# Note on platform coverage: ARM64 Windows is not yet exercised in CI.
+# It will be added once GitHub-hosted Windows ARM64 runners reach
+# general availability; the cost of self-hosted ARM Windows runners is
+# not justified at v0.0.9's scale.  See private/docs/03-technical-design.md
+# §12.2.
+
+jobs:
+  rust-fmt-clippy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  rust-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: stable }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --locked
+
+  ui-lint-typecheck-unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run lint:ts
+      - run: npm run test:ui
+
+  # Added v0.1.0: Playwright E2E specs driving the Vite dev server with
+  # the browser-stubs serving a synthetic document.  Marked
+  # continue-on-error: true because the framework is in place but
+  # flake-tolerance hardening is a follow-up, same posture as the
+  # reproducible-build-check job below.
+  ui-e2e:
+    needs: changes
+    if: needs.changes.outputs.non-md == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx -w lantern-ui playwright install --with-deps chromium
+      - run: npm run e2e
+
+  # Shipped in v0.0.6: proves the offline-only build flavor links no
+  # networking stack at all.  Builds with --no-default-features and
+  # asserts `cargo tree` contains neither reqwest nor hyper.
+  offline-build-symbol-check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: stable }
+      - uses: Swatinem/rust-cache@v2
+      - name: Build offline-only flavor
+        run: cargo build --release -p lantern-app --no-default-features --locked
+      - name: Assert no networking crates in dependency graph
+        shell: pwsh
+        run: |
+          $tree = cargo tree -p lantern-app --no-default-features
+          if ($tree -match '\breqwest\b') { Write-Error "reqwest leaked into offline build"; exit 1 }
+          if ($tree -match '\bhyper\b')   { Write-Error "hyper leaked into offline build";   exit 1 }
+          Write-Host "Offline build clean: no reqwest, no hyper."
+
+  # Detects whether the PR touches anything outside markdown files.
+  # Used to skip the heavy build jobs on doc-only PRs (the GitHub Actions
+  # equivalent of `paths-ignore: ['**/*.md']` scoped to specific jobs).
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      non-md: ${{ steps.filter.outputs.non-md }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            non-md:
+              - '!**/*.md'
+
+  # Added v0.0.9: produces the portable single-exe artifact.  Skipped on
+  # PRs that only touch markdown to keep doc-only PRs fast.
+  build-portable-x64:
+    needs: changes
+    if: needs.changes.outputs.non-md == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - name: Build portable flavor
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.portable.conf.json
+      - name: Upload portable exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: lantern-portable-x64
+          path: target/x86_64-pc-windows-msvc/release/lantern.exe
+          if-no-files-found: error
+
+  # Added v0.0.10, corrected v0.1.0: produces signed installer artifacts
+  # (NSIS + MSI + standalone exe) when an Authenticode certificate secret
+  # is available.  The job is conditional on the LANTERN_CODESIGN_PFX_BASE64
+  # secret being set; on a PR from a fork or a repo without the secret it
+  # is skipped (so external contributors can still build unsigned locally).
+  #
+  # Signing model: Tauri produces unsigned bundles, then `signtool sign`
+  # runs as a post-build step against each artefact.  v0.0.10's original
+  # design routed signing through Tauri's `bundle.windows.signCommand`
+  # config field, but Tauri 2 errors when that field resolves to an empty
+  # string at build time, so we sign post-hoc instead.  The
+  # LANTERN_SIGNED=1 env var is still passed during cargo build so
+  # build.rs can bake the `BuildInfo.signed` flag into the binary.
+  #
+  # Local equivalent: see private/docs/14-signing-runbook.md.
+  sign-windows-installed:
+    needs: changes
+    if: needs.changes.outputs.non-md == 'true'
+    runs-on: windows-latest
+    env:
+      LANTERN_CODESIGN_PFX_BASE64: ${{ secrets.LANTERN_CODESIGN_PFX_BASE64 }}
+      LANTERN_CODESIGN_PFX_PASSWORD: ${{ secrets.LANTERN_CODESIGN_PFX_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip if cert secret is missing
+        id: gate
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrEmpty($env:LANTERN_CODESIGN_PFX_BASE64)) {
+            Write-Host "::notice::LANTERN_CODESIGN_PFX_BASE64 not set; skipping signed-installer build."
+            "should_run=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            "should_run=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+      - if: steps.gate.outputs.should_run == 'true'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+      - if: steps.gate.outputs.should_run == 'true'
+        uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - if: steps.gate.outputs.should_run == 'true'
+        uses: Swatinem/rust-cache@v2
+      - if: steps.gate.outputs.should_run == 'true'
+        run: npm ci
+      - name: Import code-signing certificate
+        if: steps.gate.outputs.should_run == 'true'
+        id: cert
+        shell: pwsh
+        run: |
+          $bytes = [Convert]::FromBase64String($env:LANTERN_CODESIGN_PFX_BASE64)
+          $pfx   = Join-Path $env:RUNNER_TEMP "lantern-codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, $bytes)
+          $sec = ConvertTo-SecureString -String $env:LANTERN_CODESIGN_PFX_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $sec
+          "thumbprint=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Remove-Item $pfx -Force
+      - name: Build installed flavor (unsigned bundles)
+        if: steps.gate.outputs.should_run == 'true'
+        env:
+          LANTERN_SIGNED: "1"
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.installed.conf.json
+      - name: Sign artefacts with signtool
+        if: steps.gate.outputs.should_run == 'true'
+        shell: pwsh
+        env:
+          THUMB: ${{ steps.cert.outputs.thumbprint }}
+        run: |
+          $kit = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\" -Directory `
+                 | Where-Object { Test-Path "$($_.FullName)\x64\signtool.exe" } `
+                 | Sort-Object Name -Descending | Select-Object -First 1
+          $signtool = "$($kit.FullName)\x64\signtool.exe"
+          $base = "target\x86_64-pc-windows-msvc\release"
+          $artefacts = @(
+            "$base\lantern.exe",
+            "$base\bundle\nsis\*.exe",
+            "$base\bundle\msi\*.msi"
+          ) | ForEach-Object { Get-ChildItem $_ -ErrorAction SilentlyContinue }
+          foreach ($a in $artefacts) {
+            & $signtool sign /sha1 $env:THUMB /tr http://timestamp.digicert.com /td sha256 /fd sha256 $a.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed on $($a.FullName)" }
+            & $signtool verify /pa /v $a.FullName | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "signtool verify failed on $($a.FullName)" }
+            Write-Host "Signed: $($a.FullName)"
+          }
+      - name: Upload signed installers
+        if: steps.gate.outputs.should_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lantern-installed-signed-x64
+          path: |
+            target/x86_64-pc-windows-msvc/release/lantern.exe
+            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  # Added v0.0.9: runs the portable build twice in two fresh checkouts
+  # on the same runner, captures both lantern.exe SHA256 hashes, and
+  # asserts equality.  Non-blocking for now: reproducibility is a target,
+  # not a contract.  Flip continue-on-error to false once it's reliably
+  # green over a sustained window.
+  reproducible-build-check:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout (build A)
+        uses: actions/checkout@v4
+        with:
+          path: build-a
+      - name: Checkout (build B)
+        uses: actions/checkout@v4
+        with:
+          path: build-b
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install npm deps (build A)
+        working-directory: build-a
+        run: npm ci
+      - name: Install npm deps (build B)
+        working-directory: build-b
+        run: npm ci
+      - name: Build A
+        working-directory: build-a
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.portable.conf.json
+      - name: Build B
+        working-directory: build-b
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.portable.conf.json
+      - name: Hash and diff
+        shell: pwsh
+        run: |
+          $a = (Get-FileHash -Algorithm SHA256 build-a/target/x86_64-pc-windows-msvc/release/lantern.exe).Hash
+          $b = (Get-FileHash -Algorithm SHA256 build-b/target/x86_64-pc-windows-msvc/release/lantern.exe).Hash
+          Write-Host "Build A: $a"
+          Write-Host "Build B: $b"
+          if ($a -ne $b) {
+            Write-Error "Reproducibility check failed: hashes differ."
+            exit 1
+          }
+          Write-Host "Reproducibility check passed."

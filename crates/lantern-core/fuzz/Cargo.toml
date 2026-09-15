@@ -1,0 +1,36 @@
+# Separate cargo project for cargo-fuzz.
+#
+# `cargo-fuzz` requires a nightly toolchain and is run manually; CI does not
+# exercise these targets.  See `README.md` in this directory for the workflow.
+#
+# This crate is intentionally *not* a workspace member: cargo-fuzz manages its
+# own build profile and would conflict with the workspace's resolver settings.
+[package]
+name = "lantern-core-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+lantern-core = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "fuzz_parser"
+path = "fuzz_targets/fuzz_parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_url_treatments"
+path = "fuzz_targets/fuzz_url_treatments.rs"
+test = false
+doc = false
+bench = false
+
+[profile.release]
+debug = 1

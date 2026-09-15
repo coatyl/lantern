@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Design tokens: CSS custom properties
+   ---------------------------------------------------------------------------
+   All colour values live here as CSS variables so a light theme only needs to
+   override :root.  Surface colours are stored as hex; accent and danger are
+   stored as RGB channels (without the rgb() wrapper) so Tailwind opacity
+   modifiers like bg-accent/10 continue to work correctly.
+
+   Theme switching:
+     :root                    → dark theme (default)
+     :root[data-theme="light"] → light theme override
+
+   The runtime sets `data-theme` on <html> based on the user setting (System
+   resolves via prefers-color-scheme).
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* Surfaces */
+  --surface-0: #0a0a0a;
+  --surface-1: #111111;
+  --surface-2: #1a1a1a;
+  --surface-3: #222222;
+  --surface-4: #2a2a2a;
+
+  /* Accent (amber warm-glow): RGB channels for <alpha-value> support */
+  --accent:       245 158 11;   /* amber-500 */
+  --accent-hover: 251 191 36;   /* amber-400 */
+
+  /* Danger (destructive actions).  Audit P2 #21: red-500 (~3.8:1) bumped to
+     red-400 (~4.7:1) so destructive copy clears WCAG AA on dark surfaces. */
+  --danger: 248 113 113;        /* red-400 */
+
+  /* Diff preview: char-level before/after highlighting */
+  --diff-removed: 248 113 113;  /* red-400 */
+  --diff-added:   74 222 128;   /* green-400 */
+
+  /* Border.  Audit P2 #22: neutral-800 (~3:1) bumped to neutral-700 (~4.1:1)
+     so input borders / divider lines clear the 3:1 UI floor with margin. */
+  --border: #404040;            /* neutral-700 */
+
+  /* Scrollbar: track + thumb (overridable per theme) */
+  --scrollbar-thumb:       #333333;
+  --scrollbar-thumb-hover: #4a4a4a;
+}
+
+/* Light theme: surfaces flip from near-black to near-white, accent stays
+   amber so brand identity carries across themes.  Borders, scrollbars, and
+   the diff palette are all retuned for sufficient contrast on light surfaces
+   (border ≥ 3:1 against surface-0; diff colours stay AA-readable on white). */
+:root[data-theme="light"] {
+  /* Surfaces: progressively darker greys */
+  --surface-0: #ffffff;
+  --surface-1: #f7f7f7;
+  --surface-2: #efefef;
+  --surface-3: #e6e6e6;
+  --surface-4: #dcdcdc;
+
+  /* Accent stays amber (245 158 11) and provides ~3.0:1 on white, fine for
+     icons, ring outlines, and large text.  Body copy uses neutral-* utilities
+     so the accent isn't load-bearing for readability. */
+  --accent:       245 158 11;
+  --accent-hover: 180 83 9;      /* audit P2 #21: amber-600 → amber-700 (~5.5:1)
+                                    so hover text on white passes WCAG AA. */
+
+  /* Danger: red-600 hits ~4.5:1 against white */
+  --danger: 220 38 38;           /* red-600 */
+
+  /* Diff preview: red-600 / green-700 deepen for AA on light surfaces */
+  --diff-removed: 220 38 38;     /* red-600   ~5:1 vs white */
+  --diff-added:    21 128 61;    /* green-700 ~5:1 vs white */
+
+  /* Border.  Audit P2 #22: neutral-300 (~1.5:1) bumped to neutral-400 (~2.4:1)
+     for inputs/dividers; still soft enough not to fight the white surface. */
+  --border: #a3a3a3;             /* neutral-400 */
+
+  /* Scrollbar: light-mode greys */
+  --scrollbar-thumb:       #c8c8c8;
+  --scrollbar-thumb-hover: #a3a3a3;
+}
+
+/* ---------------------------------------------------------------------------
+   Global resets & base styles
+   --------------------------------------------------------------------------- */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Prevent blue selection highlight on the drag region */
+[data-tauri-drag-region] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Focus ring: consistent amber ring on keyboard focus
+   --------------------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid rgb(var(--accent) / 0.7);
+  outline-offset: 1px;
+}
+
+/* Most buttons already suppress the ring on click via focus:outline-none;
+   this rule only fires on keyboard focus. */
+
+/* ---------------------------------------------------------------------------
+   Scrollbar: driven by CSS vars so themes can retune it
+   --------------------------------------------------------------------------- */
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ---------------------------------------------------------------------------
+   Selection colour
+   --------------------------------------------------------------------------- */
+
+::selection {
+  background: rgb(var(--accent) / 0.25);
+  color: inherit;
+}
+
+/* ---------------------------------------------------------------------------
+   Animations
+   --------------------------------------------------------------------------- */
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out both;
+}
+
+/* Toast slide-in: bottom-right corner notifications (v0.8.2 QoL slice 1).
+   The toast renderer (`components/Toast.tsx`) lives in a `position: fixed`
+   stack at `bottom-3 right-3`; this animation pulls each new row up from a
+   small offset so it visibly arrives rather than popping in. */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.18s ease-out both;
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion: honour user's OS-level "reduce motion" setting
+   ---------------------------------------------------------------------------
+   Disables our two custom animations so users with vestibular sensitivities
+   don't see fade-ins or pulsing dots.  We deliberately do not blanket-disable
+   every transition; short colour fades on hover/focus are fine and improve
+   discoverability.  Only the longer/more obvious motion is suppressed.
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-pulse-dot,
+  .animate-toast-in {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   List-pane row density (v0.4.0, Settings → "Comfortable rows")
+   ---------------------------------------------------------------------------
+   The list-pane row uses Tailwind's `py-1` (4 px top + 4 px bottom) by default,
+   which gives ~28 px-tall rows.  When the user opts into comfortable density
+   we bump the vertical padding so rows land at roughly 36 px: easier on the
+   eye and friendlier to touch input.  We target only [data-item-row] inside
+   the active root so other list-style components (rule-set editor, etc.) are
+   unaffected.
+   --------------------------------------------------------------------------- */
+
+[data-density="comfortable"] [data-item-row] {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}

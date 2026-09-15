@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lantern-core",
+    "crates/lantern-io",
+    "crates/lantern-net",
+    "crates/lantern-app",
+    "crates/lantern-cli",
+]
+# Fuzz targets live in crates/lantern-core/fuzz/ and intentionally require a
+# nightly toolchain, so they are not part of the main workspace build.
+exclude = [
+    "crates/lantern-core/fuzz",
+]
+
+[workspace.package]
+version    = "0.1.0"
+edition    = "2021"
+rust-version = "1.80"
+
+# Shared dependency versions: individual crates pull these in via { workspace = true }.
+[workspace.dependencies]
+lantern-core = { path = "crates/lantern-core" }
+lantern-io   = { path = "crates/lantern-io" }
+lantern-net  = { path = "crates/lantern-net" }
+
+anyhow              = "1"
+chrono              = { version = "0.4", default-features = false, features = ["std", "clock"] }
+clap                = { version = "4", features = ["derive"] }
+regex               = { version = "1", default-features = false, features = ["std"] }
+html5ever           = "0.27"
+indexmap            = "2"
+markup5ever_rcdom   = "0.3"
+parking_lot         = "0.12"
+serde               = { version = "1", features = ["derive"] }
+serde_json          = "1"
+tempfile            = "3"
+thiserror           = "1"
+toml                = "0.8"
+ts-rs               = "10"
+url                 = "2"
+
+# Dev-only
+proptest            = "1"
+
+# ─── Profiles ────────────────────────────────────────────────────────────────
+# Dev: keep our crates debuggable (opt-level 0), but compile heavy dependencies
+# (html5ever, regex, reqwest, tokio, …) at full speed so tests aren't molasses.
+[profile.dev]
+opt-level = 0
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# Release: prioritise binary size + runtime speed.  Slower link, smaller exe.
+[profile.release]
+lto           = "thin"
+codegen-units = 1
+strip         = "symbols"

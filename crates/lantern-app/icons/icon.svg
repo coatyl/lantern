@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+
+    <!-- ── Background ────────────────────────────────────────────────────── -->
+    <radialGradient id="bgGrad" cx="50%" cy="42%" r="58%">
+      <stop offset="0%"   stop-color="#2d1200"/>
+      <stop offset="100%" stop-color="#0a0400"/>
+    </radialGradient>
+
+    <!-- ── Frame metal ───────────────────────────────────────────────────── -->
+    <linearGradient id="metalTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fcd34d"/>
+      <stop offset="45%"  stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#78350f"/>
+    </linearGradient>
+    <linearGradient id="metalSide" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#fbbf24"/>
+      <stop offset="50%"  stop-color="#b45309"/>
+      <stop offset="100%" stop-color="#92400e"/>
+    </linearGradient>
+    <linearGradient id="metalBar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#92400e"/>
+    </linearGradient>
+
+    <!-- ── Glass interior ───────────────────────────────────────────────── -->
+    <radialGradient id="glassGlow" cx="50%" cy="62%" r="48%">
+      <stop offset="0%"   stop-color="#fef9c3" stop-opacity="0.28"/>
+      <stop offset="60%"  stop-color="#fde68a" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#fde68a" stop-opacity="0.00"/>
+    </radialGradient>
+
+    <!-- ── Flame ─────────────────────────────────────────────────────────── -->
+    <radialGradient id="flameOuter" cx="50%" cy="62%" r="50%">
+      <stop offset="0%"   stop-color="#fef9c3" stop-opacity="0.95"/>
+      <stop offset="18%"  stop-color="#fde68a"/>
+      <stop offset="42%"  stop-color="#f59e0b"/>
+      <stop offset="68%"  stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#9a3412" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Flame teardrop shape -->
+    <radialGradient id="flameBody" cx="50%" cy="55%" r="50%">
+      <stop offset="0%"   stop-color="#fffde7"/>
+      <stop offset="30%"  stop-color="#fde68a"/>
+      <stop offset="70%"  stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#c2410c" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ── Ambient glow (light behind glass) ──────────────────────────── -->
+    <radialGradient id="ambientGlow" cx="50%" cy="60%" r="44%">
+      <stop offset="0%"   stop-color="#fde68a" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ── Left-edge shine on glass ─────────────────────────────────────── -->
+    <linearGradient id="glassShine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#fffde7" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#fffde7" stop-opacity="0.00"/>
+    </linearGradient>
+
+    <!-- ── Drop shadows ──────────────────────────────────────────────────── -->
+    <filter id="capShadow" x="-8%" y="-8%" width="116%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="flameShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- ── Glass body clip ──────────────────────────────────────────────── -->
+    <clipPath id="glassClip">
+      <!-- Slightly inset from the frame lines -->
+      <polygon points="396,210 628,210 656,756 368,756"/>
+    </clipPath>
+
+  </defs>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       Background: dark rounded-square
+       ════════════════════════════════════════════════════════════════════════ -->
+  <rect x="0" y="0" width="1024" height="1024" rx="180" fill="url(#bgGrad)"/>
+
+  <!-- Subtle inner vignette ring -->
+  <rect x="0" y="0" width="1024" height="1024" rx="180"
+        fill="none" stroke="#000" stroke-width="40" stroke-opacity="0.25"/>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       Bail / hanging handle
+       ════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Arch arms -->
+  <path d="M432 170 Q430 84 512 80 Q594 84 592 170"
+        fill="none" stroke="url(#metalTop)" stroke-width="36"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Horizontal collar where bail meets cap -->
+  <rect x="424" y="158" width="176" height="26" rx="13" fill="url(#metalTop)"/>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       Top cap
+       ════════════════════════════════════════════════════════════════════════ -->
+  <rect x="338" y="184" width="348" height="54" rx="18"
+        fill="url(#metalTop)" filter="url(#capShadow)"/>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       Glass body: dark backing
+       ════════════════════════════════════════════════════════════════════════ -->
+  <polygon points="382,238 642,238 668,762 356,762"
+           fill="#180800" fill-opacity="0.88"/>
+
+  <!-- Ambient warm glow from flame -->
+  <polygon points="382,238 642,238 668,762 356,762"
+           fill="url(#ambientGlow)"/>
+
+  <!-- ── Left glass panel shine ─────────────────────────────────────────── -->
+  <polygon points="382,238 430,238 400,762 356,762"
+           fill="url(#glassShine)" clip-path="url(#glassClip)"/>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       Flame  (drawn before frame bars so bars overlay it naturally)
+       ════════════════════════════════════════════════════════════════════════ -->
+  <g filter="url(#flameShadow)">
+    <!-- Outer radial haze -->
+    <ellipse cx="512" cy="564" rx="138" ry="180" fill="url(#flameOuter)"/>
+
+    <!-- Teardrop body: tip upward -->
+    <path d="
+      M512 378
+      C540 420, 568 480, 568 544
+      C568 608, 544 644, 512 658
+      C480 644, 456 608, 456 544
+      C456 480, 484 420, 512 378
+      Z"
+      fill="url(#flameBody)" fill-opacity="0.94"/>
+
+    <!-- Bright inner core -->
+    <ellipse cx="512" cy="578" rx="44" ry="62" fill="#fef9c3" fill-opacity="0.90"/>
+    <!-- White hot tip -->
+    <ellipse cx="512" cy="558" rx="18" ry="30" fill="#ffffff" fill-opacity="0.85"/>
+  </g>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       Frame bars  (drawn over the flame)
+       ════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Outer left side -->
+  <line x1="382" y1="238" x2="356" y2="762"
+        stroke="url(#metalSide)" stroke-width="26" stroke-linecap="round"/>
+  <!-- Outer right side -->
+  <line x1="642" y1="238" x2="668" y2="762"
+        stroke="url(#metalSide)" stroke-width="26" stroke-linecap="round"/>
+
+  <!-- Inner left bar (≈ 30 % across) -->
+  <line x1="450" y1="238" x2="432" y2="762"
+        stroke="url(#metalBar)" stroke-width="16" stroke-linecap="round"/>
+  <!-- Inner right bar (≈ 70 % across) -->
+  <line x1="574" y1="238" x2="592" y2="762"
+        stroke="url(#metalBar)" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Top horizontal -->
+  <line x1="382" y1="238" x2="642" y2="238"
+        stroke="url(#metalTop)" stroke-width="18"/>
+  <!-- Mid horizontal -->
+  <line x1="356" y1="500" x2="668" y2="500"
+        stroke="url(#metalBar)" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       Bottom cap + base
+       ════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Bottom cap fills the tapered bottom of the glass -->
+  <path d="M356 762 L668 762 Q672 806 512 816 Q352 806 356 762 Z"
+        fill="url(#metalTop)" filter="url(#capShadow)"/>
+
+  <!-- Base ring -->
+  <ellipse cx="512" cy="828" rx="132" ry="26"
+           fill="url(#metalTop)" filter="url(#capShadow)"/>
+  <!-- Base ring inner shadow -->
+  <ellipse cx="512" cy="832" rx="88" ry="16" fill="#78350f"/>
+
+</svg>

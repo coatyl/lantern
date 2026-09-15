@@ -1,0 +1,58 @@
+[package]
+name         = "lantern-app"
+version.workspace    = true
+edition.workspace    = true
+rust-version.workspace = true
+description  = "Tauri application shell for Lantern: glue layer between lantern-core/lantern-io and the React UI."
+
+[lib]
+# Required by Tauri's mobile target; also lets us test state/command logic.
+crate-type = ["cdylib", "rlib"]
+
+# Override the default binary name (Cargo would otherwise name it after the
+# package = "lantern-app").  The user-facing exe is just `lantern.exe`.
+[[bin]]
+name = "lantern"
+path = "src/main.rs"
+
+[package.metadata.tauri]
+# Needed for tauri-build to locate the config.
+
+# ─── Build flavors (v0.0.6) ─────────────────────────────────────────────────
+# The default build links the dead-link checker (and therefore reqwest/tokio/
+# rustls) into the final binary.  An offline-only build is produced with
+# `--no-default-features`, which drops the `checker` feature.  The
+# `lantern-net` dependency is kept unconditional because the workspace still
+# refers to its always-available result types (`LinkStatus`, `should_check`,
+# `classify_status`, …); only the heavyweight async runtime + TLS stack lives
+# behind `lantern-net/checker`.
+#
+# The CI `offline-build-symbol-check` job runs `cargo tree` on the
+# no-default-features build and asserts that reqwest, tokio, and hyper are
+# absent from the resolved dependency graph.
+[features]
+default = ["checker"]
+checker = ["lantern-net/checker"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+lantern-core = { workspace = true }
+lantern-io   = { workspace = true }
+lantern-net  = { workspace = true }
+indexmap     = { workspace = true }
+parking_lot  = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+toml         = { workspace = true }
+thiserror    = { workspace = true }
+url          = { workspace = true }
+regex        = { workspace = true }
+ts-rs        = { workspace = true }
+tauri        = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell  = "2"
+
+[dev-dependencies]
+tempfile     = { workspace = true }

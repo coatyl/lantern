@@ -1,0 +1,19 @@
+[package]
+name         = "lantern-core"
+version.workspace    = true
+edition.workspace    = true
+rust-version.workspace = true
+description  = "Pure core logic for Lantern: parser, model, sanitization, diff, merge, and emit. Zero I/O."
+
+[dependencies]
+chrono            = { workspace = true }
+html5ever         = { workspace = true }
+indexmap          = { workspace = true }
+markup5ever_rcdom = { workspace = true }
+regex             = { workspace = true }
+thiserror         = { workspace = true }
+toml              = { workspace = true }
+url               = { workspace = true }
+
+[dev-dependencies]
+proptest          = { workspace = true }

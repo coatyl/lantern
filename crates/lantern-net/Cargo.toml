@@ -1,0 +1,29 @@
+[package]
+name         = "lantern-net"
+version.workspace    = true
+edition.workspace    = true
+rust-version.workspace = true
+description  = "Network boundary for Lantern: opt-in dead-link checker."
+
+# The dead-link checker pulls in the full async runtime + TLS stack, so it lives
+# behind a feature flag.  The default build of `lantern-net` is byte-cheap and
+# exposes only the result types, which is what the rest of the workspace links
+# against in v0.0.4 (the feature is enabled lazily by the desktop app once the
+# user opts in via the settings toggle).
+[features]
+default     = []
+checker     = ["reqwest", "tokio", "futures"]
+
+[dependencies]
+serde       = { workspace = true }
+thiserror   = { workspace = true }
+url         = { workspace = true }
+
+# Feature-gated: only compiled when `checker` is on.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"], optional = true }
+tokio   = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"], optional = true }
+futures = { version = "0.3", optional = true }
+
+[dev-dependencies]
+tokio       = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+serde_json  = { workspace = true }

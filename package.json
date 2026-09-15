@@ -1,0 +1,30 @@
+{
+  "name": "lantern",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["ui"],
+  "scripts": {
+    "dev":        "tauri dev   --config crates/lantern-app/tauri.conf.json",
+    "build":      "tauri build --config crates/lantern-app/tauri.conf.json",
+
+    "test":       "npm run test:rust && npm run test:ui",
+    "test:rust":  "cargo test --workspace --locked",
+    "test:ui":    "npm test -w lantern-ui -- --run",
+
+    "lint":       "npm run lint:rust && npm run lint:fmt && npm run lint:ts",
+    "lint:rust":  "cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "lint:fmt":   "cargo fmt --all -- --check",
+    "lint:ts":    "tsc --noEmit -p ui",
+
+    "fmt":        "cargo fmt --all",
+    "check":      "npm run lint && npm run test",
+
+    "e2e":        "npm run e2e -w lantern-ui",
+    "e2e:headed": "npm run e2e:headed -w lantern-ui",
+
+    "bindings":   "cargo test -p lantern-app export_bindings"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

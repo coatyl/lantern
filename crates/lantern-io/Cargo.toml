@@ -1,0 +1,15 @@
+[package]
+name         = "lantern-io"
+version.workspace    = true
+edition.workspace    = true
+rust-version.workspace = true
+description  = "Filesystem boundary for Lantern: read/write bookmark files, settings (TOML), and rule sets."
+
+[dependencies]
+lantern-core = { workspace = true }
+chrono       = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+tempfile     = { workspace = true }
+thiserror    = { workspace = true }
+toml         = { workspace = true }

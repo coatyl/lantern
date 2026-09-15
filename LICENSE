@@ -1,0 +1,14 @@
+Lantern is dual-licensed under the Apache License, Version 2.0 and the
+MIT license, at your option.
+
+See [`LICENSE-APACHE`](LICENSE-APACHE) for the Apache 2.0 text and
+[`LICENSE-MIT`](LICENSE-MIT) for the MIT text.
+
+You may use, copy, modify, and redistribute this software under the
+terms of either licence; choose whichever fits your project.
+
+Unless explicitly noted otherwise, any contribution intentionally
+submitted for inclusion in Lantern by you shall be dual-licensed as
+above, without any additional terms or conditions.
+
+SPDX-License-Identifier: Apache-2.0 OR MIT
