@@ -9,6 +9,14 @@ node_modules/
 # Bundled frontend output
 dist/
 
+# Playwright E2E output (report + per-run traces/screenshots)
+ui/test-results/
+ui/playwright-report/
+
+# Tauri regenerates the ACL schema for whichever platform it builds on; only
+# the Windows/desktop schemas are tracked, so ignore the per-host Linux one.
+crates/lantern-app/gen/schemas/linux-schema.json
+
 # OS junk
 Thumbs.db
 Desktop.ini
