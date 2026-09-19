@@ -90,6 +90,30 @@ export default function App() {
     document.documentElement.setAttribute("data-density", density);
   }, [density]);
 
+  // Hydrate already-open documents on startup so the three-pane workspace
+  // mounts without an explicit open action. On a normal cold start the
+  // backend reports no open tabs and we fall through to the welcome screen;
+  // when documents are already present (e.g. the pre-opened fixture used by
+  // browser-preview / E2E mode) the first tab is activated automatically.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await refreshTabs();
+        const { tabs: openTabs, activeTab: current } = useDocuments.getState();
+        if (!cancelled && current === null && openTabs.length > 0) {
+          await setActiveTab(openTabs[0].id);
+        }
+      } catch {
+        // Not in a Tauri context (or IPC unavailable); stay on the welcome screen.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {

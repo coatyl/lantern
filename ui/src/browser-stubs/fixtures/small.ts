@@ -151,7 +151,7 @@ export function smallFixture(): FixtureState {
     build_flavor: "default",
     rust_version: "1.80.0",
     git_commit: null,
-    license: "MPL-2.0",
+    license: "Apache-2.0 OR MIT",
     adr_index_path: "private/docs/adr/",
     signed: false,
   };
