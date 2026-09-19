@@ -60,7 +60,7 @@ cargo install cargo-audit --locked      # advisory checks
 ### 2.3 Clone and first build
 
 ```
-git clone https://github.com/<org>/lantern.git
+git clone https://github.com/coatyl/lantern.git
 cd lantern
 cargo fetch                 # downloads Rust deps
 npm install                 # installs npm-workspaces (root + ui together)
@@ -92,7 +92,7 @@ The live clone URL while the repo is on Cursor Origin:
 git clone https://origin.cursor.com/john-pork-corp/lantern.git
 ```
 
-The `github.com/<org>/lantern` URL in this guide and in `README.md` is the public-flip placeholder.
+The `github.com/coatyl/lantern` URL is the canonical GitHub remote; the Cursor Origin URL above mirrors it while the repo is hosted there.
 
 ## 3. Project tour
 
@@ -164,9 +164,9 @@ npm run check                                  # lint + test (the pre-commit gat
 
 ```
 cargo run -p lantern-cli -- --help
-cargo run -p lantern-cli -- scrub fixtures/browsers/firefox/realistic.html \
-  --rule-set rule-sets/standard-scrub.toml \
-  --out /tmp/out.html
+cargo run -p lantern-cli -- sanitize crates/lantern-cli/tests/fixtures/small.html \
+  --rule-set aggressive-scrub \
+  --output /tmp/out.html
 ```
 
 The CLI is a good way to work on sanitization treatments without bouncing through the UI. It has the same core APIs under the hood.

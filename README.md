@@ -2,8 +2,7 @@
 
 A local-only Windows desktop app for exploring, sanitising, and re-exporting browser bookmark files.
 
-<!-- TODO: replace `<org>` with the real GitHub org/user once the repo is flipped public. -->
-[![CI](https://github.com/<org>/lantern/actions/workflows/ci.yml/badge.svg)](https://github.com/<org>/lantern/actions/workflows/ci.yml)
+[![CI](https://github.com/coatyl/lantern/actions/workflows/ci.yml/badge.svg)](https://github.com/coatyl/lantern/actions/workflows/ci.yml)
 [![Licence](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](LICENSE)
 
 ---
@@ -46,7 +45,7 @@ The output should report `Status: Valid`. Unsigned dev builds and self-built bin
 Prerequisites: [Rust stable](https://rustup.rs/) (toolchain pinned in `rust-toolchain.toml`), [Node.js 20+](https://nodejs.org/), Microsoft C++ Build Tools, and WebView2 (pre-installed on Windows 11).
 
 ```powershell
-git clone https://github.com/<org>/lantern.git
+git clone https://github.com/coatyl/lantern.git
 cd lantern
 npm install
 npm run build
@@ -73,20 +72,23 @@ The full keyboard map lives in `Settings → Keyboard`. The app is operable end-
 
 ## CLI
 
-The headless `lantern-cli` binary runs the same sanitisation passes from the command line. Useful for scripting, CI scrubs, or running on a machine without a desktop.
+The `lantern-cli` crate builds a headless `lantern` binary that runs the same sanitisation passes from the command line. Useful for scripting, CI scrubs, or running on a machine without a desktop.
 
 ```powershell
-# Inspect a bookmark file's structure (counts, top-level folders).
-lantern-cli inspect bookmarks.html
+# Print structural information about a bookmark file (counts, depth).
+lantern info bookmarks.html
 
-# Run a rule set over a file and write the cleaned copy to a new path.
-lantern-cli scrub bookmarks.html --rule-set rules/full-scrub.toml --out cleaned.html
+# Apply a built-in rule set and write the cleaned copy to a new file.
+lantern sanitize bookmarks.html --rule-set full-scrub --output cleaned.html
 
-# Round-trip a file through the parser to validate it (no mutation).
-lantern-cli verify bookmarks.html
+# Preview the changes a rule set would make, without writing anything.
+lantern sanitize bookmarks.html --rule-set full-scrub --dry-run
+
+# List the built-in rule sets (minimal-clean, aggressive-scrub, full-scrub).
+lantern rule-sets
 ```
 
-`lantern-cli --help` lists every subcommand and flag. The CLI shares the same core APIs as the desktop app, so a scrub run from either produces identical output for the same rule set + input.
+`lantern --help` lists every subcommand and flag. The CLI shares the same core APIs as the desktop app, so a `sanitize` run from either produces identical output for the same rule set + input.
 
 ## Licence
 
