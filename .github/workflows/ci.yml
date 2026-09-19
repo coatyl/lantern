@@ -9,6 +9,18 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+# Restricted GITHUB_TOKEN is the account default (contents + metadata +
+# packages only). Any job that calls the Pulls API without declaring
+# `pull-requests: read` fails with "Resource not accessible by
+# integration" — that is why the old `dorny/paths-filter` `changes` job
+# went red on every PR, and why the same 403 shows up on every other
+# repo that inherited this default. Contents is enough for git-based
+# path filtering below; pull-requests is granted so a future API
+# consumer does not silently regress.
+permissions:
+  contents: read
+  pull-requests: read
+
 # Note on platform coverage: ARM64 Windows is not yet exercised in CI.
 # It will be added once GitHub-hosted Windows ARM64 runners reach
 # general availability; the cost of self-hosted ARM Windows runners is
@@ -85,21 +97,37 @@ jobs:
           if ($tree -match '\bhyper\b')   { Write-Error "hyper leaked into offline build";   exit 1 }
           Write-Host "Offline build clean: no reqwest, no hyper."
 
-  # Detects whether the PR touches anything outside markdown files.
-  # Used to skip the heavy build jobs on doc-only PRs (the GitHub Actions
-  # equivalent of `paths-ignore: ['**/*.md']` scoped to specific jobs).
+  # Detects whether the PR (or push) touches anything outside markdown.
+  # Implemented with `git diff` rather than `dorny/paths-filter`, which
+  # calls GET /pulls/{n}/files and 403s under the restricted default
+  # GITHUB_TOKEN (see the workflow-level `permissions` comment).
   changes:
     runs-on: ubuntu-latest
     outputs:
       non-md: ${{ steps.filter.outputs.non-md }}
     steps:
       - uses: actions/checkout@v4
-      - id: filter
-        uses: dorny/paths-filter@v3
         with:
-          filters: |
-            non-md:
-              - '!**/*.md'
+          fetch-depth: 0
+      - id: filter
+        name: Detect non-markdown changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          if [ -z "${BASE}" ] || [ "${BASE}" = "0000000000000000000000000000000000000000" ]; then
+            echo "non-md=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "${BASE}" HEAD | grep -qvE '\.md$'; then
+            echo "non-md=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "non-md=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # Added v0.0.9: produces the portable single-exe artifact.  Skipped on
   # PRs that only touch markdown to keep doc-only PRs fast.
@@ -223,46 +251,45 @@ jobs:
             target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
           if-no-files-found: error
 
-  # Added v0.0.9: runs the portable build twice in two fresh checkouts
-  # on the same runner, captures both lantern.exe SHA256 hashes, and
-  # asserts equality.  Non-blocking for now: reproducibility is a target,
-  # not a contract.  Flip continue-on-error to false once it's reliably
-  # green over a sustained window.
+  # Added v0.0.9, corrected after every run hashed differently: the
+  # original job built from two sibling checkouts (`build-a` vs
+  # `build-b`).  rustc / MSVC embed absolute source paths, so those
+  # binaries can never match.  Build twice from the same tree, wipe
+  # `target/` between them, and pin path-remap + /Brepro so the PE
+  # header is deterministic.  Still continue-on-error until it stays
+  # green for a sustained window.
   reproducible-build-check:
     runs-on: windows-latest
     continue-on-error: true
+    env:
+      SOURCE_DATE_EPOCH: "1714953600"
+      CARGO_INCREMENTAL: "0"
+      RUSTFLAGS: "--remap-path-prefix=${{ github.workspace }}=. -C link-arg=/Brepro"
     steps:
-      - name: Checkout (build A)
-        uses: actions/checkout@v4
-        with:
-          path: build-a
-      - name: Checkout (build B)
-        uses: actions/checkout@v4
-        with:
-          path: build-b
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           targets: x86_64-pc-windows-msvc
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - name: Install npm deps (build A)
-        working-directory: build-a
-        run: npm ci
-      - name: Install npm deps (build B)
-        working-directory: build-b
-        run: npm ci
+      - run: npm ci
       - name: Build A
-        working-directory: build-a
         run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.portable.conf.json
-      - name: Build B
-        working-directory: build-b
-        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.portable.conf.json
-      - name: Hash and diff
+      - name: Hash A and wipe target
         shell: pwsh
         run: |
-          $a = (Get-FileHash -Algorithm SHA256 build-a/target/x86_64-pc-windows-msvc/release/lantern.exe).Hash
-          $b = (Get-FileHash -Algorithm SHA256 build-b/target/x86_64-pc-windows-msvc/release/lantern.exe).Hash
+          $exe = "target/x86_64-pc-windows-msvc/release/lantern.exe"
+          (Get-FileHash -Algorithm SHA256 $exe).Hash | Set-Content -NoNewline hash-a.txt
+          Write-Host "Build A: $(Get-Content hash-a.txt)"
+          Remove-Item -Recurse -Force target
+      - name: Build B
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.portable.conf.json
+      - name: Hash B and compare
+        shell: pwsh
+        run: |
+          $a = Get-Content hash-a.txt
+          $b = (Get-FileHash -Algorithm SHA256 target/x86_64-pc-windows-msvc/release/lantern.exe).Hash
           Write-Host "Build A: $a"
           Write-Host "Build B: $b"
           if ($a -ne $b) {
