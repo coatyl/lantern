@@ -16,6 +16,33 @@ point breaking changes will require a major-version bump.  Future
 slices (CLI subcommand expansion, more locales, ARM64 build, MSIX
 packaging hardening, etc.) continue on the way to v1.0.
 
+### Added
+
+- Cloud Agent development environment (`.cursor/environment.json` +
+  `.cursor/install.sh`) so the workspace builds and tests on Linux.
+- `.nvmrc` pinning the Node.js version referenced by `CONTRIBUTING.md`.
+- `ROADMAP.md` outlining proposed post-1.0 directions.
+
+### Fixed
+
+- **ui:** the three-pane workspace now hydrates already-open documents on
+  startup instead of only after an explicit open action; the welcome
+  screen still shows when no document is open.
+- **ci:** the Playwright E2E suite is green again — replaced ambiguous
+  text locators (which broke once real workspace content rendered) with
+  scoped, role-based selectors.
+- **app:** `crates/lantern-app/src/commands.rs` now ends with a trailing
+  newline, so `cargo fmt --check` passes.
+- **docs:** `README.md` and `CONTRIBUTING.md` CLI examples now match the
+  shipped subcommands (`info` / `sanitize` / `rule-sets`) and flags
+  (`--output`, `--dry-run`); resolved the `<org>` repository placeholders.
+
+### Changed
+
+- Regenerated the `ts-rs` bindings (`DocDiffReport`, `RuleSetDetail`) that
+  had drifted from their Rust doc comments.
+- Ignore per-host Playwright output and the Linux Tauri ACL schema.
+
 ---
 
 ## [0.1.0] - 2026-05-05
