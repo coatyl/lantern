@@ -2,7 +2,7 @@
 import type { RuleSetTreatment } from "./RuleSetTreatment";
 
 /**
- * Full detail for one rule set (treatment list in order), used by the editor.
+ * Full detail for one rule set (treatment list in order) used by the editor.
  */
 export type RuleSetDetail = { name: string, 
 /**
