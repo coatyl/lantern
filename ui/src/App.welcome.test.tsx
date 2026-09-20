@@ -3,10 +3,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 
 import { WelcomeScreen } from "./App";
 import { I18nProvider } from "./i18n/I18nProvider";
+import { ipc } from "./ipc";
 
 vi.mock("./ipc", () => ({
   ipc: {
@@ -39,7 +40,7 @@ describe("WelcomeScreen", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the archive entrance: mark, title, manifesto, and open action", () => {
+  it("renders the archive entrance: mark, title, manifesto, and open action", async () => {
     renderWelcome();
 
     expect(screen.getByRole("heading", { name: "Lantern" })).toBeInTheDocument();
@@ -51,5 +52,12 @@ describe("WelcomeScreen", () => {
     const open = screen.getByRole("button", { name: "Open file…" });
     expect(open).toBeInTheDocument();
     expect(open).not.toHaveAttribute("tabindex", "-1");
+
+    // Welcome hydrates recent/recovery in an effect; wait so the update is not
+    // an unwrapped act() warning.
+    await waitFor(() => {
+      expect(ipc.listRecentFiles).toHaveBeenCalled();
+      expect(ipc.getRecoveryState).toHaveBeenCalled();
+    });
   });
 });
