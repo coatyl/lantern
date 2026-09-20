@@ -87,11 +87,17 @@ lantern sanitize bookmarks.html --rule-set full-scrub --output cleaned.html
 # Preview the changes a rule set would make, without writing anything.
 lantern sanitize bookmarks.html --rule-set full-scrub --dry-run
 
-# List the built-in rule sets (minimal-clean, aggressive-scrub, full-scrub).
+# Review exact-URL duplicates as proposed deletions (nothing is removed).
+lantern sanitize bookmarks.html --rule-set find-duplicates --dry-run
+
+# List the built-in rule sets (minimal-clean, aggressive-scrub, full-scrub,
+# find-duplicates).
 lantern rule-sets
 ```
 
 `lantern --help` lists every subcommand and flag. The CLI shares the same core APIs as the desktop app, so a `sanitize` run from either produces identical output for the same rule set + input.
+
+Without `--dry-run`, `lantern sanitize` **auto-approves every proposed change**, including destructive deletions from `find-duplicates`. Always inspect that rule set with `--dry-run` first. The GUI never auto-applies: each deletion stays unchecked until you approve it.
 
 ## Licence
 

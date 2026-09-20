@@ -15,6 +15,7 @@
 //!   treatments/
 //!     url_qp.rs:      url.qp.utm, url.qp.click_ids, url.qp.session
 //!     title.rs:       title.whitespace
+//!     duplicates.rs:  structure.duplicates.exact_url
 //! ```
 
 pub mod apply;

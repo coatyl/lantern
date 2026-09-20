@@ -26,6 +26,20 @@ packaging hardening, etc.) continue on the way to v1.0.
   supported input so the GUI can open the result later. `info` (and
   `sanitize`) accept JSON too.
 - Welcome screen notes that Chrome Bookmarks JSON is accepted.
+- **ui:** command palette (`Ctrl+K` / `⌘K`) for Open file, Settings,
+  Export, Run pass, Focus search, Compare tabs, Check dead links,
+  Merge documents, and Toggle theme. Welcome screen points at the
+  shortcut; Settings → Keyboard lists it.
+- **core / cli:** exact-URL duplicate review pass
+  (`structure.duplicates.exact_url`) and a dedicated built-in rule set
+  **Find duplicates**. Groups bookmarks that share a URL after a light
+  canonicalisation (lowercase host, strip trailing slash), keeps the
+  oldest `ADD_DATE` (or first-seen), and proposes `DeleteNode` changes
+  that are destructive and unapproved. Query-parameter and fragment
+  differences are not collapsed in this slice. Minimal / Aggressive /
+  Full are unchanged. CLI `--dry-run` lists each proposed deletion;
+  a real `lantern sanitize` run still auto-approves (documented in
+  `--help` and `README.md`). The GUI does not auto-apply.
 - **ui:** library home replaces the one-shot welcome splash. Recent
   files render as a collection of volumes (name, directory, most-recent
   badge); empty and populated libraries are distinct layouts; crash
@@ -68,6 +82,13 @@ packaging hardening, etc.) continue on the way to v1.0.
 - Regenerated the `ts-rs` bindings (`DocDiffReport`, `RuleSetDetail`) that
   had drifted from their Rust doc comments.
 - Ignore per-host Playwright output and the Linux Tauri ACL schema.
+- **ui:** first cut of the warm-archive identity. Dark surfaces shift from
+  cool `#0a0a0a` greys to ink / brown-black; light theme is paper, not an
+  inverted IDE. The amber accent keeps a glow companion. Welcome is an
+  archive entrance (larger lantern mark + manifesto); empty states are
+  instructional rather than "no data". Title bar and status bar pick up
+  the wordmark and offline-badge treatment. Visual only — no new
+  network, telemetry, or font payload (Inter Variable already shipped).
 
 ---
 

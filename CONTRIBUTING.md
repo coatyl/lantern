@@ -317,7 +317,7 @@ This is the highest-impact contribution type. Let's walk through adding a hypoth
        }
    }
    ```
-3. **Register it.** Add it to the built-in treatment registry in `treatments/mod.rs`.
+3. **Register it.** Add it to the built-in treatment registry in `treatments/mod.rs`, then add a `treatment_from_id` arm in `crates/lantern-io/src/ruleset.rs` (and the GUI catalogue in `lantern-app` if the picker should list it). Document-level treatments such as `structure.duplicates.exact_url` implement `propose_document` and belong in their own rule set when they delete nodes — do not add destructive deletes to Minimal / Aggressive / Full.
 4. **Write tests.** Create `treatments/tests/url_qp_custom_shop_tracker.rs` with a list of matches and non-matches.
    ```rust
    #[test]

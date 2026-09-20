@@ -38,10 +38,11 @@ use lantern_core::sanitize::treatment::Treatment;
 use lantern_core::sanitize::treatments::{
     AffiliateTreatment, AuthorSuffixTreatment, ClickIdsTreatment, CustomQpTreatment,
     DeduplicateTreatment, DemobilizeTreatment, EmailTreatment, EmptyFoldersTreatment,
-    FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment, FragmentTrackingTreatment,
-    HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment, RegexFolderTreatment,
-    RegexTitleTreatment, SearchTokensTreatment, SessionTreatment, StripFragmentTreatment,
-    UnshortenOfflineTreatment, UserSegmentTreatment, UtmTreatment, WhitespaceTreatment,
+    ExactUrlDuplicatesTreatment, FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment,
+    FragmentTrackingTreatment, HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment,
+    RegexFolderTreatment, RegexTitleTreatment, SearchTokensTreatment, SessionTreatment,
+    StripFragmentTreatment, UnshortenOfflineTreatment, UserSegmentTreatment, UtmTreatment,
+    WhitespaceTreatment,
 };
 
 use crate::atomic::write_atomic;
@@ -233,9 +234,10 @@ fn treatment_from_id(id: &str) -> Option<Box<dyn Treatment>> {
         "folder.html_entities" => Some(Box::new(FolderHtmlEntitiesTreatment)),
         "folder.regex" => Some(Box::new(RegexFolderTreatment::empty())),
 
-        // ── Cross-field ────────────────────────────────────────────────────
+        // ── Cross-field / structure ────────────────────────────────────────
         "cross.dedupe" => Some(Box::new(DeduplicateTreatment)),
         "cross.empty_folders" => Some(Box::new(EmptyFoldersTreatment)),
+        "structure.duplicates.exact_url" => Some(Box::new(ExactUrlDuplicatesTreatment)),
 
         _ => None,
     }

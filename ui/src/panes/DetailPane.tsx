@@ -12,6 +12,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import { RUN_PASS_EVENT } from "../components/commandPalette";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useDocuments } from "../state/documents";
@@ -73,6 +74,17 @@ export default function DetailPane() {
       setRunning(false);
     }
   };
+
+  const handleRunPassRef = useRef(handleRunPass);
+  handleRunPassRef.current = handleRunPass;
+
+  useEffect(() => {
+    const onRunPass = () => {
+      void handleRunPassRef.current();
+    };
+    window.addEventListener(RUN_PASS_EVENT, onRunPass);
+    return () => window.removeEventListener(RUN_PASS_EVENT, onRunPass);
+  }, []);
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">

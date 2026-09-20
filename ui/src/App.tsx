@@ -15,12 +15,13 @@
  *   └─────────────────────────────────────────────────────┘
  */
 
-import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { useEffect, useMemo, useState } from "react";
+import { open, save } from "@tauri-apps/plugin-dialog";
 
 import { useDocuments } from "./state/documents";
 import { ipc } from "./ipc";
-import { useTheme } from "./hooks/useTheme";
+import { applyTheme, resolveTheme, useTheme } from "./hooks/useTheme";
+import { useT } from "./i18n/I18nProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
 import TitleBar from "./shell/TitleBar";
 import TabBar, { tabControlId, tabPanelId } from "./shell/TabBar";
@@ -33,7 +34,15 @@ import { SettingsModal } from "./components/SettingsModal";
 import { DiffModal } from "./components/DiffModal";
 import { DeadLinkModal } from "./components/DeadLinkModal";
 import { MergePickerModal } from "./components/MergePickerModal";
+import { CommandPalette } from "./components/CommandPalette";
+import {
+  requestRunPass,
+  requestSearchFocus,
+  type CommandId,
+  type PaletteCommand,
+} from "./components/commandPalette";
 import Toaster from "./components/Toast";
+import { useT } from "./i18n/I18nProvider";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -45,6 +54,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export default function App() {
+  const t = useT();
   const {
     tabs,
     activeTab,
@@ -64,12 +74,15 @@ export default function App() {
   const [diffOpen, setDiffOpen] = useState(false);
   const [deadLinkOpen, setDeadLinkOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [themeNonce, setThemeNonce] = useState(0);
   const [density, setDensity] = useState<"compact" | "comfortable">("compact");
 
-  // Theme: read on mount, re-read whenever the settings modal closes.  The
-  // hook also subscribes to OS prefers-color-scheme changes when the user
-  // setting is "system".
-  useTheme(settingsOpen);
+  // Theme: read on mount, re-read whenever the settings modal closes or
+  // the command-palette toggle writes a new theme.  The hook also
+  // subscribes to OS prefers-color-scheme changes when the user setting
+  // is "system".
+  useTheme(settingsOpen || themeNonce);
 
   // Pull list density from settings on mount and again whenever the settings
   // modal closes, so toggling the option updates the layout immediately.
@@ -116,9 +129,124 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const openBookmarkFile = async () => {
+    const selected = await open({
+      filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
+      multiple: false,
+    });
+    if (typeof selected === "string") {
+      await openFile(selected);
+    }
+  };
+
+  const exportActiveDocument = async () => {
+    if (activeTab === null) return;
+    try {
+      const path = await save({
+        filters: [{ name: "HTML bookmark file", extensions: ["html", "htm"] }],
+        defaultPath: "bookmarks.html",
+      });
+      if (typeof path === "string") {
+        await ipc.export(activeTab, { kind: "whole_document" }, path);
+      }
+    } catch {
+      // user cancelled or export failed
+    }
+  };
+
+  const toggleTheme = async () => {
+    try {
+      const s = await ipc.getSettings();
+      const next = resolveTheme(s.theme) === "dark" ? "light" : "dark";
+      await ipc.updateSettings({ ...s, theme: next });
+      applyTheme(next);
+      setThemeNonce((n) => n + 1);
+    } catch {
+      // not in Tauri context
+    }
+  };
+
+  const runPaletteCommand = (id: CommandId) => {
+    setPaletteOpen(false);
+    // Defer until the palette focus trap has restored the prior element,
+    // so the destination (settings dialog, search input, …) keeps focus.
+    window.setTimeout(() => {
+      switch (id) {
+        case "open_file":
+          void openBookmarkFile();
+          break;
+        case "settings":
+          setSettingsOpen(true);
+          break;
+        case "export":
+          void exportActiveDocument();
+          break;
+        case "run_pass":
+          requestRunPass();
+          break;
+        case "search_focus":
+          requestSearchFocus();
+          break;
+        case "compare_tabs":
+          setDiffOpen(true);
+          break;
+        case "check_dead_links":
+          setDeadLinkOpen(true);
+          break;
+        case "merge_documents":
+          setMergeOpen(true);
+          break;
+        case "toggle_theme":
+          void toggleTheme();
+          break;
+      }
+    }, 0);
+  };
+
+  const paletteCommands: PaletteCommand[] = useMemo(
+    () => [
+      { id: "open_file", label: t("commandPalette.openFile"), shortcut: "Ctrl+O", enabled: true },
+      { id: "settings", label: t("titleBar.settings"), shortcut: "Ctrl+,", enabled: true },
+      { id: "export", label: t("commandPalette.export"), shortcut: "Ctrl+E", enabled: activeTab !== null },
+      { id: "run_pass", label: t("commandPalette.runPass"), shortcut: "Ctrl+R", enabled: activeTab !== null },
+      { id: "search_focus", label: t("commandPalette.search"), shortcut: "Ctrl+F", enabled: activeTab !== null },
+      {
+        id: "compare_tabs",
+        label: t("titleBar.tools.diff"),
+        shortcut: "Ctrl+Shift+D",
+        enabled: tabs.length >= 2,
+      },
+      {
+        id: "check_dead_links",
+        label: t("titleBar.tools.deadLinks"),
+        enabled: activeTab !== null,
+      },
+      {
+        id: "merge_documents",
+        label: t("titleBar.tools.merge"),
+        shortcut: "Ctrl+M",
+        enabled: tabs.length >= 1,
+      },
+      { id: "toggle_theme", label: t("commandPalette.toggleTheme"), enabled: true },
+    ],
+    [t, activeTab, tabs.length],
+  );
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
+      // Ctrl+K / Cmd+K → command palette (toggle)
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        (e.key === "k" || e.key === "K")
+      ) {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+        return;
+      }
+
       // Ctrl+, → settings
       if (e.ctrlKey && !e.shiftKey && e.key === ",") {
         e.preventDefault();
@@ -153,6 +281,7 @@ export default function App() {
         if (typeof selected === "string") {
           await openFile(selected);
         }
+        await openBookmarkFile();
         return;
       }
 
@@ -234,7 +363,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-    <div className="flex flex-col h-screen bg-surface-0 text-neutral-100 overflow-hidden">
+    <div className="flex flex-col h-screen bg-surface-0 text-ink overflow-hidden">
       {/* Custom title bar (window is frameless) */}
       <TitleBar
         onSettings={() => setSettingsOpen(true)}
@@ -284,6 +413,13 @@ export default function App() {
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={paletteCommands}
+        onRun={runPaletteCommand}
       />
 
       {/* Compare tabs modal: opened by Ctrl+Shift+D */}
@@ -361,10 +497,40 @@ function LanternLogo() {
       {/* Flame / glow centre */}
       <ellipse cx="14" cy="18" rx="3.5" ry="4.5" opacity="0.65" />
     </svg>
+ * Welcome-screen lantern mark: same geometry as the title-bar micro-icon,
+ * rendered as a real mark (halo + glow) rather than a 16 px afterthought.
+ */
+export function LanternLogo() {
+  return (
+    <div
+      className="relative flex items-center justify-center w-40 h-40"
+      aria-hidden
+    >
+      <div className="absolute inset-0 lantern-halo rounded-full" />
+      <svg
+        viewBox="0 0 28 36"
+        className="relative w-24 h-[7.5rem] text-accent lantern-glow"
+        fill="currentColor"
+      >
+        <rect x="5" y="7" width="18" height="22" rx="3" opacity="0.18" />
+        <rect x="5" y="7" width="18" height="22" rx="3"
+              fill="none" stroke="currentColor" strokeWidth="1.8" />
+        <line x1="5" y1="18" x2="23" y2="18"
+              stroke="currentColor" strokeWidth="1.1" opacity="0.45" />
+        <line x1="14" y1="7" x2="14" y2="29"
+              stroke="currentColor" strokeWidth="1.1" opacity="0.45" />
+        <rect x="9" y="4" width="10" height="4" rx="1.5" />
+        <path d="M10 4 Q14 0.5 18 4"
+              fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        <ellipse cx="14" cy="18" rx="3.5" ry="4.5" opacity="0.7" />
+      </svg>
+    </div>
   );
 }
 
 function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) {
+export function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) {
+  const t = useT();
   const { refreshTabs, setActiveTab } = useDocuments();
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [recoveryPaths, setRecoveryPaths] = useState<string[]>([]);
@@ -395,6 +561,7 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
         { name: "Bookmark files", extensions: ["html", "htm", "json"] },
         { name: "All files", extensions: ["*"] },
       ],
+      filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
       multiple: false,
     });
     if (typeof selected === "string") {
@@ -459,6 +626,18 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
         <h1 className="text-xl font-semibold text-neutral-200 mb-1 tracking-wide">Lantern</h1>
         <p className="text-sm text-neutral-500">
           Open a Netscape HTML export or a Chrome Bookmarks JSON file to get started.
+    <main className="flex-1 flex flex-col items-center justify-center gap-7 px-6 text-ink-muted">
+      <LanternLogo />
+
+      <div className="text-center max-w-md">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-ink-faint mb-3">
+          {t("welcome.kicker")}
+        </p>
+        <h1 className="font-display text-[2rem] text-ink mb-3">
+          {t("welcome.title")}
+        </h1>
+        <p className="font-display-tight text-sm text-ink-muted leading-relaxed">
+          {t("welcome.manifesto")}
         </p>
       </div>
 
@@ -479,6 +658,17 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
                 Recover Previous Session
               </p>
               <p className="mt-1 text-xs text-neutral-500">
+        {t("welcome.open")}
+      </button>
+
+      {recoveryPaths.length > 0 && (
+        <div className="w-full max-w-lg rounded-lg border border-accent/25 bg-surface-2/80 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-accent">
+                Recover Previous Session
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">
                 Lantern did not shut down cleanly last time. Reopen the previous files?
               </p>
             </div>
@@ -488,6 +678,8 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
                 disabled={restoringSession}
                 className="px-3 py-1.5 rounded border border-neutral-700 text-xs text-neutral-400
                            hover:text-neutral-200 hover:border-neutral-500 transition-colors
+                className="px-3 py-1.5 rounded border border-ink-faint/40 text-xs text-ink-muted
+                           hover:text-ink hover:border-ink-muted transition-colors
                            disabled:opacity-40"
               >
                 Dismiss
@@ -505,11 +697,13 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
           <div className="mt-3 space-y-1.5">
             {recoveryPaths.slice(0, 5).map((path) => (
               <div key={path} className="text-[11px] text-neutral-500 break-all">
+              <div key={path} className="text-[11px] text-ink-faint break-all">
                 {path}
               </div>
             ))}
             {recoveryPaths.length > 5 && (
               <div className="text-[11px] text-neutral-600">
+              <div className="text-[11px] text-ink-faint">
                 +{recoveryPaths.length - 5} more file{recoveryPaths.length - 5 !== 1 ? "s" : ""}
               </div>
             )}
@@ -519,6 +713,7 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
 
       {recoveryMessage && (
         <p className="text-xs text-neutral-500">{recoveryMessage}</p>
+        <p className="text-xs text-ink-muted">{recoveryMessage}</p>
       )}
 
       {/* Recent files */}
@@ -530,6 +725,11 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
               onClick={handleClearRecent}
               disabled={clearingRecent}
               className="text-[10px] text-neutral-600 hover:text-neutral-300 transition-colors
+            <p className="text-[10px] uppercase tracking-[0.18em] text-ink-faint">Recent</p>
+            <button
+              onClick={handleClearRecent}
+              disabled={clearingRecent}
+              className="text-[10px] text-ink-faint hover:text-ink-muted transition-colors
                          disabled:opacity-40"
             >
               {clearingRecent ? "Clearing…" : "Clear"}
@@ -551,6 +751,9 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
                 <span className="text-neutral-300">{name}</span>
                 {dir && (
                   <span className="ml-2 text-neutral-700 text-[10px]">{dir}</span>
+                <span className="text-ink">{name}</span>
+                {dir && (
+                  <span className="ml-2 text-ink-faint text-[10px]">{dir}</span>
                 )}
               </button>
             );
@@ -562,5 +765,15 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
         Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported
       </p>
     </div>
+      <p className="text-xs text-neutral-500">
+        {t("welcome.paletteHint")}
+      </p>
+
+      <p className="text-[11px] text-neutral-700 mt-2">
+        Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported
+      <p className="text-[11px] text-ink-faint mt-2">
+        {t("welcome.hint")}
+      </p>
+    </main>
   );
 }
