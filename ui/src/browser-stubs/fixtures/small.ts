@@ -143,6 +143,7 @@ export function smallFixture(): FixtureState {
     { action_id: "open_file",  label: "Open file",  key_combo: "Ctrl+O", category: "File" },
     { action_id: "save",       label: "Save",       key_combo: "Ctrl+S", category: "File" },
     { action_id: "settings",   label: "Settings",   key_combo: "Ctrl+,", category: "App" },
+    { action_id: "command_palette", label: "Command palette", key_combo: "Ctrl+K / ⌘K", category: "Tools" },
     { action_id: "compare",    label: "Compare tabs", key_combo: "Ctrl+Shift+D", category: "Tools" },
   ];
 

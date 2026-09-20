@@ -2005,6 +2005,12 @@ fn default_shortcuts() -> Vec<ShortcutBinding> {
         s("search", "Search", "Ctrl+F", "View"),
         s("filter_drawer", "Filter drawer", "Ctrl+Shift+F", "View"),
         // Tools
+        s(
+            "command_palette",
+            "Command palette",
+            "Ctrl+K / ⌘K",
+            "Tools",
+        ),
         s("settings", "Open settings", "Ctrl+,", "Tools"),
         s(
             "compare_tabs",
@@ -2108,6 +2114,10 @@ mod settings_ui_tests {
         assert!(combos.contains(&"Ctrl+O"), "missing Ctrl+O");
         assert!(combos.contains(&"Ctrl+,"), "missing Ctrl+,");
         assert!(combos.contains(&"Ctrl+M"), "missing Ctrl+M");
+        assert!(
+            combos.contains(&"Ctrl+K / ⌘K"),
+            "missing command-palette Ctrl+K"
+        );
     }
 
     #[test]
