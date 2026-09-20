@@ -443,8 +443,8 @@ mod tests {
         let sets = list_rule_sets(dir.path()).unwrap();
         assert_eq!(sets.len(), 5);
         assert_eq!(sets[4].name, "Custom cleanup"); // user set last
-        assert!(!sets[3].is_builtin);
-        assert_eq!(sets[3].treatment_count, 2);
+        assert!(!sets[4].is_builtin);
+        assert_eq!(sets[4].treatment_count, 2);
     }
 
     #[test]
