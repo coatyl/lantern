@@ -15,6 +15,8 @@ import type { Translations } from "./types";
 export const en: Translations = {
   // ── Title bar ──────────────────────────────────────────────────────────
   "titleBar.open":             "Open",
+  "titleBar.library":          "Library",
+  "titleBar.libraryHint":      "Library (Ctrl+Shift+L)",
   "titleBar.tools":            "Tools",
   "titleBar.tools.diff":       "Compare tabs…",
   "titleBar.tools.deadLinks":  "Check dead links…",
@@ -71,4 +73,27 @@ export const en: Translations = {
 
   // ── Loading shared (v0.0.11 QoL slice 1) ────────────────────────────────
   "loading.generic":           "Loading…",
+
+  // ── Library home (the stacks; the workspace is inside a volume) ─────────
+  "library.region":                    "Library",
+  "library.title":                     "Library",
+  "library.subtitle":                  "A private collection of bookmark files on this machine.",
+  "library.empty.title":               "Your library is empty",
+  "library.empty.description":         "Open a bookmark file to start a private collection. Files you open stay listed here.",
+  "library.open":                      "Open file…",
+  "library.recentHeading":             "Recent volumes",
+  "library.recentCount":               "{n} volumes",
+  "library.clearRecent":               "Clear",
+  "library.clearing":                  "Clearing…",
+  "library.mostRecent":                "Most recent",
+  "library.openVolume":                "Open {name}",
+  "library.recovery.title":            "Recover previous session",
+  "library.recovery.description":      "Lantern did not shut down cleanly last time. Reopen the previous files?",
+  "library.recovery.dismiss":          "Dismiss",
+  "library.recovery.restore":          "Restore",
+  "library.recovery.restoring":        "Restoring…",
+  "library.recovery.failed":           "Could not restore the previous session.",
+  "library.recovery.partial":          "Restored {restored} files; {failed} could not be reopened.",
+  "library.recovery.more":             "+{n} more",
+  "library.hint":                      "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
 };

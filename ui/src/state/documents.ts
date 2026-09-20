@@ -126,6 +126,12 @@ interface DocumentsState {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   setActiveTab: (id: TabId) => Promise<void>;
+  /**
+   * Leave the three-pane workspace and show the library home without
+   * closing any tabs.  Open volumes stay in the tab bar; clicking one
+   * focuses that volume again.
+   */
+  showLibrary: () => void;
   refreshTabs: () => Promise<void>;
   refreshTree: () => Promise<void>;
 
@@ -214,6 +220,21 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
       searchResults: null,
     });
     await Promise.all([get().refreshTree(), get().refreshList()]);
+  },
+
+  showLibrary: () => {
+    set({
+      activeTab: null,
+      tree: null,
+      listPage: null,
+      folderStack: [],
+      backHistory: [],
+      forwardHistory: [],
+      page: 1,
+      selectedItem: null,
+      isSearchMode: false,
+      searchResults: null,
+    });
   },
 
   refreshTabs: async () => {
