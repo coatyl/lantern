@@ -60,6 +60,13 @@ packaging hardening, etc.) continue on the way to v1.0.
 - Regenerated the `ts-rs` bindings (`DocDiffReport`, `RuleSetDetail`) that
   had drifted from their Rust doc comments.
 - Ignore per-host Playwright output and the Linux Tauri ACL schema.
+- **ui:** first cut of the warm-archive identity. Dark surfaces shift from
+  cool `#0a0a0a` greys to ink / brown-black; light theme is paper, not an
+  inverted IDE. The amber accent keeps a glow companion. Welcome is an
+  archive entrance (larger lantern mark + manifesto); empty states are
+  instructional rather than "no data". Title bar and status bar pick up
+  the wordmark and offline-badge treatment. Visual only — no new
+  network, telemetry, or font payload (Inter Variable already shipped).
 
 ---
 
