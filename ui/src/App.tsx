@@ -25,6 +25,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import TitleBar from "./shell/TitleBar";
 import TabBar, { tabControlId, tabPanelId } from "./shell/TabBar";
 import StatusBar from "./shell/StatusBar";
+import LibraryHome from "./shell/LibraryHome";
 import TreePane from "./panes/TreePane";
 import ListPane from "./panes/ListPane";
 import DetailPane from "./panes/DetailPane";
@@ -48,6 +49,7 @@ export default function App() {
     tabs,
     activeTab,
     openFile,
+    showLibrary,
     refreshTabs,
     setActiveTab,
     refreshTree,
@@ -90,6 +92,30 @@ export default function App() {
     document.documentElement.setAttribute("data-density", density);
   }, [density]);
 
+  // Hydrate already-open documents on startup so the three-pane workspace
+  // mounts without an explicit open action. On a normal cold start the
+  // backend reports no open tabs and we fall through to the library home;
+  // when documents are already present (e.g. the pre-opened fixture used by
+  // browser-preview / E2E mode) the first tab is activated automatically.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await refreshTabs();
+        const { tabs: openTabs, activeTab: current } = useDocuments.getState();
+        if (!cancelled && current === null && openTabs.length > 0) {
+          await setActiveTab(openTabs[0].id);
+        }
+      } catch {
+        // Not in a Tauri context (or IPC unavailable); stay on the library home.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
@@ -104,6 +130,13 @@ export default function App() {
       if (e.ctrlKey && e.shiftKey && (e.key === "d" || e.key === "D")) {
         e.preventDefault();
         setDiffOpen(true);
+        return;
+      }
+
+      // Ctrl+Shift+L → library home (tabs stay open)
+      if (e.ctrlKey && e.shiftKey && (e.key === "l" || e.key === "L")) {
+        e.preventDefault();
+        showLibrary();
         return;
       }
 
@@ -163,7 +196,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [openFile, activeTab, tabs, refreshTree, refreshList]);
+  }, [openFile, showLibrary, activeTab, tabs, refreshTree, refreshList]);
 
   useEffect(() => {
     const preventBrowserButtons = (e: MouseEvent) => {
@@ -213,7 +246,8 @@ export default function App() {
       {/* Tab bar */}
       {tabs.length > 0 && <TabBar />}
 
-      {/* Three-pane workspace: only shown when a document is open */}
+      {/* Three-pane workspace: shown when a volume tab is focused.
+          Library home is the stacks; this pane is inside a volume. */}
       {activeTab !== null ? (
         <main
           className="flex flex-1 min-h-0"
@@ -237,7 +271,7 @@ export default function App() {
           </aside>
         </main>
       ) : (
-        <WelcomeScreen onOpen={openFile} />
+        <LibraryHome onOpen={openFile} />
       )}
 
       {/* Status bar */}
@@ -286,239 +320,5 @@ export default function App() {
       <Toaster />
     </div>
     </ErrorBoundary>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Welcome screen (shown when no document is open)
-// ---------------------------------------------------------------------------
-
-/**
- * Full-size lantern SVG for the welcome screen.
- * Same proportions as the TitleBar micro-icon but rendered at 72 × 90 px.
- */
-function LanternLogo() {
-  return (
-    <svg
-      viewBox="0 0 28 36"
-      className="w-16 h-20 text-accent drop-shadow-[0_0_18px_rgb(var(--accent)/0.35)]"
-      fill="currentColor"
-      aria-hidden
-    >
-      {/* Body: filled with low opacity */}
-      <rect x="5" y="7" width="18" height="22" rx="3" opacity="0.18" />
-      {/* Body: outline */}
-      <rect x="5" y="7" width="18" height="22" rx="3"
-            fill="none" stroke="currentColor" strokeWidth="1.8" />
-      {/* Horizontal divider */}
-      <line x1="5" y1="18" x2="23" y2="18"
-            stroke="currentColor" strokeWidth="1.1" opacity="0.45" />
-      {/* Vertical divider */}
-      <line x1="14" y1="7" x2="14" y2="29"
-            stroke="currentColor" strokeWidth="1.1" opacity="0.45" />
-      {/* Cap */}
-      <rect x="9" y="4" width="10" height="4" rx="1.5" />
-      {/* Hook / arch */}
-      <path d="M10 4 Q14 0.5 18 4"
-            fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      {/* Flame / glow centre */}
-      <ellipse cx="14" cy="18" rx="3.5" ry="4.5" opacity="0.65" />
-    </svg>
-  );
-}
-
-function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) {
-  const { refreshTabs, setActiveTab } = useDocuments();
-  const [recentFiles, setRecentFiles] = useState<string[]>([]);
-  const [recoveryPaths, setRecoveryPaths] = useState<string[]>([]);
-  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
-  const [restoringSession, setRestoringSession] = useState(false);
-  const [clearingRecent, setClearingRecent] = useState(false);
-
-  const loadWelcomeData = async () => {
-    try {
-      const [recent, recovery] = await Promise.all([
-        ipc.listRecentFiles(),
-        ipc.getRecoveryState(),
-      ]);
-      setRecentFiles(recent);
-      setRecoveryPaths(recovery.paths);
-    } catch {
-      // not in Tauri context
-    }
-  };
-
-  useEffect(() => {
-    loadWelcomeData();
-  }, []);
-
-  const handleOpen = async () => {
-    const selected = await open({
-      filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
-      multiple: false,
-    });
-    if (typeof selected === "string") {
-      await onOpen(selected);
-    }
-  };
-
-  const handleRestoreSession = async () => {
-    setRestoringSession(true);
-    setRecoveryMessage(null);
-    try {
-      const report = await ipc.restoreRecoverySession();
-      await refreshTabs();
-      setRecoveryPaths([]);
-
-      if (report.restored_tab_ids.length > 0) {
-        await setActiveTab(report.restored_tab_ids[0]);
-      }
-
-      if (report.failed_paths.length > 0) {
-        setRecoveryMessage(
-          `Restored ${report.restored_paths.length} file${report.restored_paths.length !== 1 ? "s" : ""}; ` +
-          `${report.failed_paths.length} could not be reopened.`,
-        );
-      }
-      await loadWelcomeData();
-    } catch {
-      setRecoveryMessage("Could not restore the previous session.");
-    } finally {
-      setRestoringSession(false);
-    }
-  };
-
-  const handleDismissRecovery = async () => {
-    try {
-      await ipc.dismissRecoverySession();
-      setRecoveryPaths([]);
-      setRecoveryMessage(null);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleClearRecent = async () => {
-    setClearingRecent(true);
-    try {
-      await ipc.clearRecentFiles();
-      setRecentFiles([]);
-    } catch {
-      // ignore
-    } finally {
-      setClearingRecent(false);
-    }
-  };
-
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-6 text-neutral-400">
-      {/* Lantern SVG logo */}
-      <LanternLogo />
-
-      <div className="text-center">
-        <h1 className="text-xl font-semibold text-neutral-200 mb-1 tracking-wide">Lantern</h1>
-        <p className="text-sm text-neutral-500">Open a bookmark file to get started.</p>
-      </div>
-
-      <button
-        onClick={handleOpen}
-        className="px-5 py-2 rounded-md bg-accent hover:bg-accent-hover text-neutral-950
-                   font-semibold text-sm transition-colors focus:outline-none
-                   focus-visible:ring-2 focus-visible:ring-accent/70"
-      >
-        Open file…
-      </button>
-
-      {recoveryPaths.length > 0 && (
-        <div className="w-full max-w-lg rounded-lg border border-accent/20 bg-surface-2/80 px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-accent/80">
-                Recover Previous Session
-              </p>
-              <p className="mt-1 text-xs text-neutral-500">
-                Lantern did not shut down cleanly last time. Reopen the previous files?
-              </p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={handleDismissRecovery}
-                disabled={restoringSession}
-                className="px-3 py-1.5 rounded border border-neutral-700 text-xs text-neutral-400
-                           hover:text-neutral-200 hover:border-neutral-500 transition-colors
-                           disabled:opacity-40"
-              >
-                Dismiss
-              </button>
-              <button
-                onClick={handleRestoreSession}
-                disabled={restoringSession}
-                className="px-3 py-1.5 rounded bg-accent text-neutral-950 text-xs font-semibold
-                           hover:bg-accent-hover transition-colors disabled:opacity-40"
-              >
-                {restoringSession ? "Restoring…" : "Restore"}
-              </button>
-            </div>
-          </div>
-          <div className="mt-3 space-y-1.5">
-            {recoveryPaths.slice(0, 5).map((path) => (
-              <div key={path} className="text-[11px] text-neutral-500 break-all">
-                {path}
-              </div>
-            ))}
-            {recoveryPaths.length > 5 && (
-              <div className="text-[11px] text-neutral-600">
-                +{recoveryPaths.length - 5} more file{recoveryPaths.length - 5 !== 1 ? "s" : ""}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {recoveryMessage && (
-        <p className="text-xs text-neutral-500">{recoveryMessage}</p>
-      )}
-
-      {/* Recent files */}
-      {recentFiles.length > 0 && (
-        <div className="flex flex-col items-center gap-0.5 w-full max-w-sm mt-2">
-          <div className="w-full flex items-center justify-between mb-2">
-            <p className="text-[10px] uppercase tracking-wider text-neutral-700">Recent</p>
-            <button
-              onClick={handleClearRecent}
-              disabled={clearingRecent}
-              className="text-[10px] text-neutral-600 hover:text-neutral-300 transition-colors
-                         disabled:opacity-40"
-            >
-              {clearingRecent ? "Clearing…" : "Clear"}
-            </button>
-          </div>
-          {recentFiles.map((path) => {
-            const parts = path.replace(/\\/g, "/").split("/");
-            const name = parts.pop() ?? path;
-            const dir  = parts.join("/").slice(-48) || "";
-            return (
-              <button
-                key={path}
-                onClick={() => onOpen(path)}
-                title={path}
-                className="w-full text-left px-3 py-1.5 rounded text-xs
-                           hover:bg-surface-3 transition-colors
-                           focus:outline-none focus-visible:ring-1 focus-visible:ring-accent/60"
-              >
-                <span className="text-neutral-300">{name}</span>
-                {dir && (
-                  <span className="ml-2 text-neutral-700 text-[10px]">{dir}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <p className="text-[11px] text-neutral-700 mt-2">
-        Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported
-      </p>
-    </div>
   );
 }

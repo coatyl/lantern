@@ -16,6 +16,24 @@ point breaking changes will require a major-version bump.  Future
 slices (CLI subcommand expansion, more locales, ARM64 build, MSIX
 packaging hardening, etc.) continue on the way to v1.0.
 
+### Added
+
+- **ui:** library home replaces the one-shot welcome splash. Recent
+  files render as a collection of volumes (name, directory, most-recent
+  badge); empty and populated libraries are distinct layouts; crash
+  recovery stays on the home. A title-bar **Library** control returns
+  to the stacks without closing open tabs (`showLibrary` clears the
+  focused tab only). Browser-stub fixture mode seeds three recent
+  files so the populated home can be exercised; the pre-opened fixture
+  tab still mounts the three-pane workspace for existing e2e.
+- Cloud Agent development environment (`.cursor/environment.json` +
+  `.cursor/install.sh`) so the workspace builds and tests on Linux.
+- `.nvmrc` pinning the Node.js version referenced by `CONTRIBUTING.md`.
+- `ROADMAP.md` outlining proposed post-1.0 directions.
+- `PHILOSOPHY.md` stating the major identity bets (archive vs. file
+  editor, curation vs. hygiene, local protocol, design language,
+  capability-free extensions, universal formats).
+
 ### Fixed
 
 - **ci:** the `changes` job no longer calls the Pulls API (which 403s
@@ -25,6 +43,23 @@ packaging hardening, etc.) continue on the way to v1.0.
 - **ci:** `reproducible-build-check` rebuilds twice from the same tree
   with `--remap-path-prefix` and MSVC `/Brepro`, instead of two sibling
   checkouts whose absolute paths made the hashes impossible to match.
+- **ui:** the three-pane workspace now hydrates already-open documents on
+  startup instead of only after an explicit open action; the welcome
+  screen still shows when no document is open.
+- **ci:** the Playwright E2E suite is green again — replaced ambiguous
+  text locators (which broke once real workspace content rendered) with
+  scoped, role-based selectors.
+- **app:** `crates/lantern-app/src/commands.rs` now ends with a trailing
+  newline, so `cargo fmt --check` passes.
+- **docs:** `README.md` and `CONTRIBUTING.md` CLI examples now match the
+  shipped subcommands (`info` / `sanitize` / `rule-sets`) and flags
+  (`--output`, `--dry-run`); resolved the `<org>` repository placeholders.
+
+### Changed
+
+- Regenerated the `ts-rs` bindings (`DocDiffReport`, `RuleSetDetail`) that
+  had drifted from their Rust doc comments.
+- Ignore per-host Playwright output and the Linux Tauri ACL schema.
 
 ---
 

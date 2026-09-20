@@ -26,6 +26,7 @@ import type {
 export interface FixtureState {
   settings: AppSettings;
   doc: { path: string };
+  recentFiles: string[];
   ruleSets: RuleSetSummary[];
   treatments: TreatmentInfo[];
   shortcuts: ShortcutBinding[];
@@ -34,6 +35,7 @@ export interface FixtureState {
   openTab: (path: string) => number;
   closeTab: (id: number) => void;
   listTabs: () => TabInfo[];
+  pushRecent: (path: string) => void;
   getTree: (tab: number) => TreeView;
   getTreeRoot: (tab: number) => TreeNodeLazy[];
   getTreeChildren: (tab: number, parentId: number) => TreeNodeLazy[];
@@ -151,7 +153,7 @@ export function smallFixture(): FixtureState {
     build_flavor: "default",
     rust_version: "1.80.0",
     git_commit: null,
-    license: "MPL-2.0",
+    license: "Apache-2.0 OR MIT",
     adr_index_path: "private/docs/adr/",
     signed: false,
   };
@@ -172,7 +174,23 @@ export function smallFixture(): FixtureState {
     return id;
   };
 
-  // Pre-open one tab so the welcome screen is bypassed in fixture mode and
+  // Seed a small recent-files collection so the library home can render
+  // a populated stack in fixture mode.  `list_recent_files` used to
+  // return [] which made the home look empty even after files were
+  // opened.
+  const recentFiles = [
+    "C:/lantern/test/fixtures/small.html",
+    "C:/Users/fixture/Documents/bookmarks-firefox.html",
+    "C:/Users/fixture/Downloads/chrome-bookmarks.html",
+  ];
+
+  const pushRecent = (path: string) => {
+    const next = recentFiles.filter((entry) => entry !== path);
+    next.unshift(path);
+    recentFiles.splice(0, recentFiles.length, ...next.slice(0, settings.recent_files_max));
+  };
+
+  // Pre-open one tab so the library home is bypassed in fixture mode and
   // specs can drive the three-pane workspace without first having to open
   // a file.  The first call to `list_tabs` already returns this row.
   openTab("C:/lantern/test/fixtures/small.html");
@@ -180,12 +198,14 @@ export function smallFixture(): FixtureState {
   return {
     settings,
     doc: { path: "C:/lantern/test/fixtures/small.html" },
+    recentFiles,
     ruleSets,
     treatments,
     shortcuts,
     buildInfo,
 
     openTab,
+    pushRecent,
     closeTab(id) {
       tabs.delete(id);
     },

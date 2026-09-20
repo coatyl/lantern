@@ -45,8 +45,10 @@ test("US-013: settings modal opens via Ctrl+, and the rail accepts arrow nav", a
 test("Tools menu opens from the title bar", async ({ page }) => {
   await page.goto("/");
 
-  // The Tools button is rendered in the title bar with aria-haspopup="menu".
-  const toolsBtn = page.getByRole("button", { name: "Tools" });
+  // The Tools button is rendered in the title bar (role="banner") with
+  // aria-haspopup="menu". Scope to the banner so it doesn't collide with a
+  // "Tools" folder in the tree.
+  const toolsBtn = page.getByRole("banner").getByRole("button", { name: "Tools" });
   await expect(toolsBtn).toBeVisible();
   await toolsBtn.click();
 
