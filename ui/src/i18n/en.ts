@@ -66,15 +66,17 @@ export const en: Translations = {
   "welcome.open":              "Open file…",
   "welcome.hint":              "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
 
-  // ── Empty states (v0.0.11 QoL slice 1) ──────────────────────────────────
-  "empty.tree":                "This document has no folders yet.",
-  "empty.list":                "This folder is empty.",
-  "empty.list.description":    "Bookmarks added here will appear in this list.",
-  "empty.search":              "No matches for '{query}'.",
-  "empty.search.description":  "Try fewer search terms or relax the filters.",
-  "empty.deadlinks.preRun":    "Click 'Check links' to start.",
-  "empty.deadlinks.allGreen":  "All {count} links responded OK.",
+  // ── Empty states (v0.0.11 QoL slice 1; warm-archive voice) ──────────────
+  "empty.tree":                "No folders in this archive yet.",
+  "empty.tree.description":    "Open a bookmark export that already has a folder tree, or add a folder to begin.",
+  "empty.list":                "Nothing filed here yet.",
+  "empty.list.description":    "Add a bookmark, or move one in from another folder.",
+  "empty.search":              "Nothing in this archive matches '{query}'.",
+  "empty.search.description":  "Try a shorter query, or ease the filters.",
+  "empty.deadlinks.preRun":    "Ready to check this archive.",
+  "empty.deadlinks.allGreen":  "All {count} links in this archive responded.",
   "empty.logs":                "No log entries yet.",
+  "empty.logs.description":    "When Lantern records activity, it will appear here.",
 
   // ── Loading shared (v0.0.11 QoL slice 1) ────────────────────────────────
   "loading.generic":           "Loading…",

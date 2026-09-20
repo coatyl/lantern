@@ -80,6 +80,7 @@ export function LogsPane() {
         <EmptyState
           icon={<EmptyDocumentIcon />}
           title={t("empty.logs")}
+          description={t("empty.logs.description")}
           ariaLabel={t("empty.logs")}
         />
       ) : (
