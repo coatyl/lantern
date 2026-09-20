@@ -1,9 +1,10 @@
 //! Command-tree definitions and dispatch for the `lantern` binary.
 //!
-//! The CLI is intentionally minimal for v0.1.0: three subcommands that
-//! cover the headless path the GUI exercises (parse → run rule set →
-//! emit).  Custom rule-set discovery from disk and structural commands
-//! such as `merge` / `dedupe` / `diff` are post-v0.1.0.
+//! The CLI is intentionally minimal for v0.1.0: four subcommands that
+//! cover the headless path the GUI exercises (parse → convert / run
+//! rule set → emit).  Custom rule-set discovery from disk and
+//! structural commands such as `merge` / `dedupe` / `diff` are
+//! post-v0.1.0.
 //!
 //! The public entry point is [`run`].  It accepts an `args` iterator so
 //! integration tests and embedders can drive the CLI without going
@@ -32,10 +33,12 @@ use lantern_io::{build_ruleset, read_bookmark_file, read_ruleset, write_bookmark
 #[command(
     name = "lantern",
     version,
-    about = "Sanitise and inspect Netscape bookmark files from the shell.",
+    about = "Sanitise, inspect, and convert bookmark files from the shell.",
     long_about = "Lantern's headless companion to the Tauri GUI.  \
                   Reuses lantern-core and lantern-io so the rule set + \
-                  sanitization logic gets a second consumer."
+                  sanitization logic gets a second consumer.  Reads \
+                  Netscape / Firefox HTML and Chrome Bookmarks JSON; \
+                  writes Netscape HTML only."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -52,6 +55,8 @@ enum Command {
     Sanitize(SanitizeArgs),
     /// Print structural information about a bookmark file.
     Info(InfoArgs),
+    /// Convert a bookmark file to Netscape HTML.
+    Convert(ConvertArgs),
     /// List the built-in rule sets.
     #[command(name = "rule-sets")]
     RuleSets(RuleSetsArgs),
@@ -59,7 +64,7 @@ enum Command {
 
 #[derive(Debug, Args)]
 struct SanitizeArgs {
-    /// Path to a Netscape bookmark HTML file.
+    /// Path to a Netscape HTML or Chrome Bookmarks JSON file.
     input: PathBuf,
 
     /// Output file (defaults to `<input>.clean.html`).
@@ -89,8 +94,19 @@ struct SanitizeArgs {
 
 #[derive(Debug, Args)]
 struct InfoArgs {
-    /// Path to a Netscape bookmark HTML file.
+    /// Path to a Netscape HTML or Chrome Bookmarks JSON file.
     input: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct ConvertArgs {
+    /// Path to a Netscape HTML or Chrome Bookmarks JSON file.
+    input: PathBuf,
+
+    /// Destination Netscape HTML path. Required so the source is never
+    /// overwritten (Chrome profile `Bookmarks` files stay read-only).
+    #[arg(short, long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -118,6 +134,7 @@ where
     match cli.command {
         Command::Sanitize(a) => run_sanitize(a),
         Command::Info(a) => run_info(a),
+        Command::Convert(a) => run_convert(a),
         Command::RuleSets(a) => run_rule_sets(a),
     }
 }
@@ -297,6 +314,21 @@ fn max_depth(root: &Folder) -> u32 {
         max
     }
     walk(root, 0)
+}
+
+// ---------------------------------------------------------------------------
+// `convert`
+// ---------------------------------------------------------------------------
+
+fn run_convert(args: ConvertArgs) -> Result<()> {
+    let doc = read_bookmark_file(&args.input)
+        .with_context(|| format!("reading {}", args.input.display()))?;
+
+    write_bookmark_file(&args.output, &doc, &EmitOptions::default())
+        .with_context(|| format!("writing {}", args.output.display()))?;
+
+    println!("wrote {}", args.output.display());
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

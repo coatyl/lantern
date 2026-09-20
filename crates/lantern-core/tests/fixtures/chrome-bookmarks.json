@@ -1,0 +1,58 @@
+{
+  "checksum": "anonymized0000000000000000000000",
+  "roots": {
+    "bookmark_bar": {
+      "children": [
+        {
+          "date_added": "13344473610000000",
+          "guid": "00000000-0000-4000-8000-000000000005",
+          "id": "5",
+          "name": "Example Site",
+          "type": "url",
+          "url": "https://example.com/?utm_source=newsletter&utm_medium=email"
+        },
+        {
+          "children": [
+            {
+              "date_added": "13344473620000000",
+              "guid": "00000000-0000-4000-8000-000000000007",
+              "id": "7",
+              "name": "Rust docs",
+              "type": "url",
+              "url": "https://docs.rust-lang.org/"
+            },
+            {
+              "date_added": "13344473630000000",
+              "guid": "00000000-0000-4000-8000-000000000008",
+              "id": "8",
+              "name": "News article",
+              "type": "url",
+              "url": "https://news.example.org/article?id=42"
+            }
+          ],
+          "date_added": "13344473605000000",
+          "date_modified": "13344473630000000",
+          "guid": "00000000-0000-4000-8000-000000000006",
+          "id": "6",
+          "name": "Reading",
+          "type": "folder"
+        }
+      ],
+      "date_added": "13344473600000000",
+      "date_modified": "13344473630000000",
+      "guid": "00000000-0000-4000-8000-000000000001",
+      "id": "1",
+      "name": "Bookmarks bar",
+      "type": "folder"
+    },
+    "other": {
+      "children": [],
+      "date_added": "13344473600000001",
+      "guid": "00000000-0000-4000-8000-000000000002",
+      "id": "2",
+      "name": "Other bookmarks",
+      "type": "folder"
+    }
+  },
+  "version": 1
+}

@@ -17,6 +17,11 @@ fn fixture_path() -> PathBuf {
         .join("small.html")
 }
 
+fn chrome_json_fixture() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("chrome-bookmarks.json")
 fn duplicates_fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -116,6 +121,104 @@ fn sanitize_writes_valid_bookmark_file() {
 }
 
 #[test]
+fn info_accepts_chrome_bookmarks_json() {
+    let fixture = chrome_json_fixture();
+    let assert = lantern().arg("info").arg(&fixture).assert().success();
+
+    let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert_eq!(parse_count(&output, "bookmarks:"), 3);
+    assert_eq!(parse_count(&output, "folders:"), 3);
+    assert_eq!(parse_count(&output, "max depth:"), 2);
+}
+
+#[test]
+fn convert_chrome_json_emits_netscape_html() {
+    let fixture = chrome_json_fixture();
+    let tmp = tempfile::tempdir().unwrap();
+    let output = tmp.path().join("bookmarks.html");
+
+    lantern()
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&output)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("wrote"));
+
+    let emitted = std::fs::read_to_string(&output).unwrap();
+    assert!(
+        emitted.contains("<!DOCTYPE NETSCAPE-Bookmark-file-1>"),
+        "convert must emit Netscape HTML, got:\n{emitted}"
+    );
+    assert!(
+        emitted.contains("utm_source=newsletter"),
+        "UTM params must survive convert so sanitize can still strip them"
+    );
+
+    let doc = lantern_core::parser::parse(emitted.as_bytes()).expect("emitted HTML must re-parse");
+    assert_eq!(doc.stats.bookmark_count, 3);
+    assert_eq!(doc.stats.folder_count, 3);
+}
+
+#[test]
+fn convert_then_sanitize_strips_utm() {
+    let fixture = chrome_json_fixture();
+    let tmp = tempfile::tempdir().unwrap();
+    let converted = tmp.path().join("converted.html");
+    let cleaned = tmp.path().join("cleaned.html");
+
+    lantern()
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&converted)
+        .assert()
+        .success();
+
+    lantern()
+        .arg("sanitize")
+        .arg(&converted)
+        .arg("-o")
+        .arg(&cleaned)
+        .arg("--rule-set")
+        .arg("minimal-clean")
+        .assert()
+        .success();
+
+    let cleaned_html = std::fs::read_to_string(&cleaned).unwrap();
+    assert!(
+        !cleaned_html.contains("utm_source"),
+        "minimal-clean should strip UTM params after convert:\n{cleaned_html}"
+    );
+    assert!(
+        cleaned_html.contains("https://example.com/"),
+        "the bookmark URL itself must remain"
+    );
+}
+
+#[test]
+fn convert_html_round_trips() {
+    let fixture = fixture_path();
+    let tmp = tempfile::tempdir().unwrap();
+    let output = tmp.path().join("copy.html");
+
+    lantern()
+        .arg("convert")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&output)
+        .assert()
+        .success();
+
+    let src = lantern_core::parser::parse(&std::fs::read(&fixture).unwrap()).unwrap();
+    let dst = lantern_core::parser::parse(&std::fs::read(&output).unwrap()).unwrap();
+    assert_eq!(src.stats.bookmark_count, dst.stats.bookmark_count);
+    assert_eq!(src.stats.folder_count, dst.stats.folder_count);
+}
+
+#[test]
+fn rule_sets_lists_three_builtins() {
 fn rule_sets_lists_shipped_builtins() {
     lantern()
         .arg("rule-sets")

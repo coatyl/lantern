@@ -167,6 +167,8 @@ cargo run -p lantern-cli -- --help
 cargo run -p lantern-cli -- sanitize crates/lantern-cli/tests/fixtures/small.html \
   --rule-set aggressive-scrub \
   --output /tmp/out.html
+cargo run -p lantern-cli -- convert crates/lantern-cli/tests/fixtures/chrome-bookmarks.json \
+  -o /tmp/bookmarks.html
 ```
 
 The CLI is a good way to work on sanitization treatments without bouncing through the UI. It has the same core APIs under the hood.

@@ -18,6 +18,14 @@ packaging hardening, etc.) continue on the way to v1.0.
 
 ### Added
 
+- Chrome / Chromium `Bookmarks` JSON reader
+  (`lantern_core::parser::parse_chrome_json`) with auto-detect in
+  `lantern-io::read_bookmark_file`. Firefox HTML already worked (same
+  Netscape format). Read-only: the profile file is never written.
+- `lantern convert <input> -o <output>` emits Netscape HTML from any
+  supported input so the GUI can open the result later. `info` (and
+  `sanitize`) accept JSON too.
+- Welcome screen notes that Chrome Bookmarks JSON is accepted.
 - **ui:** command palette (`Ctrl+K` / `⌘K`) for Open file, Settings,
   Export, Run pass, Focus search, Compare tabs, Check dead links,
   Merge documents, and Toggle theme. Welcome screen points at the
