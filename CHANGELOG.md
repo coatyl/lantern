@@ -18,6 +18,10 @@ packaging hardening, etc.) continue on the way to v1.0.
 
 ### Added
 
+- **ui:** command palette (`Ctrl+K` / `⌘K`) for Open file, Settings,
+  Export, Run pass, Focus search, Compare tabs, Check dead links,
+  Merge documents, and Toggle theme. Welcome screen points at the
+  shortcut; Settings → Keyboard lists it.
 - Cloud Agent development environment (`.cursor/environment.json` +
   `.cursor/install.sh`) so the workspace builds and tests on Linux.
 - `.nvmrc` pinning the Node.js version referenced by `CONTRIBUTING.md`.
