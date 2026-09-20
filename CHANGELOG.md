@@ -16,6 +16,16 @@ point breaking changes will require a major-version bump.  Future
 slices (CLI subcommand expansion, more locales, ARM64 build, MSIX
 packaging hardening, etc.) continue on the way to v1.0.
 
+### Fixed
+
+- **ci:** the `changes` job no longer calls the Pulls API (which 403s
+  under this account's restricted `GITHUB_TOKEN` — contents/metadata/
+  packages only). Path filtering is now a `git diff`, and the workflow
+  declares `permissions: contents: read, pull-requests: read`.
+- **ci:** `reproducible-build-check` rebuilds twice from the same tree
+  with `--remap-path-prefix` and MSVC `/Brepro`, instead of two sibling
+  checkouts whose absolute paths made the hashes impossible to match.
+
 ---
 
 ## [0.1.0] - 2026-05-05
