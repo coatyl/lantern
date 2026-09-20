@@ -147,7 +147,7 @@ export default function TitleBar({
     <header
       data-tauri-drag-region
       className="h-8 flex items-center justify-between bg-surface-1
-                 border-b border-neutral-800/80 shrink-0 select-none"
+                 border-b border-[color:var(--border)]/70 shrink-0 select-none"
     >
       {/* ── Left: brand name ─────────────────────────────────────────────── */}
       <div
@@ -157,7 +157,7 @@ export default function TitleBar({
         {/* Micro lantern icon */}
         <svg
           viewBox="0 0 14 18"
-          className="w-3 h-3.5 shrink-0 text-accent"
+          className="w-3.5 h-4 shrink-0 text-accent lantern-glow"
           fill="currentColor"
           aria-hidden
         >
@@ -173,7 +173,7 @@ export default function TitleBar({
                 stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
           <ellipse cx="7" cy="9" rx="1.5" ry="2" opacity="0.7" />
         </svg>
-        <span className="text-[11px] font-semibold text-neutral-400 tracking-wider uppercase">
+        <span className="font-display text-[11px] text-ink-muted uppercase">
           Lantern
         </span>
       </div>
