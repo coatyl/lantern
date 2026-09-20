@@ -4,6 +4,7 @@
 //! PRD §8.3.2.
 
 pub mod cross;
+pub mod duplicates;
 pub mod folder_name;
 pub mod title;
 pub mod url_misc;
@@ -14,6 +15,7 @@ pub mod url_qp;
 // ---------------------------------------------------------------------------
 
 pub use cross::{DeduplicateTreatment, EmptyFoldersTreatment};
+pub use duplicates::{ExactUrlDuplicatesTreatment, EXACT_URL_DUPLICATES_ID};
 pub use folder_name::{
     FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment, RegexFolderTreatment,
 };

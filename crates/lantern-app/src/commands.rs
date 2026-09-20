@@ -23,7 +23,8 @@ use lantern_core::sanitize::pass::PassTarget;
 use lantern_core::sanitize::treatment::{Change, TreatmentCategory};
 use lantern_core::sanitize::treatments::{
     AffiliateTreatment, AuthorSuffixTreatment, ClickIdsTreatment, CustomQpTreatment,
-    DemobilizeTreatment, EmailTreatment, FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment,
+    DeduplicateTreatment, DemobilizeTreatment, EmailTreatment, EmptyFoldersTreatment,
+    ExactUrlDuplicatesTreatment, FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment,
     FragmentTrackingTreatment, HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment,
     RegexFolderTreatment, RegexTitleTreatment, SearchTokensTreatment, SessionTreatment,
     StripFragmentTreatment, UnshortenOfflineTreatment, UserSegmentTreatment, UtmTreatment,
@@ -1956,6 +1957,9 @@ fn builtin_treatment_catalogue() -> Vec<TreatmentInfo> {
         Box::new(FolderWhitespaceTreatment),
         Box::new(FolderHtmlEntitiesTreatment),
         Box::new(RegexFolderTreatment::empty()),
+        Box::new(DeduplicateTreatment),
+        Box::new(EmptyFoldersTreatment),
+        Box::new(ExactUrlDuplicatesTreatment),
     ];
 
     instances

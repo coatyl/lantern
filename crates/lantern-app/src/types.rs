@@ -431,7 +431,7 @@ pub struct RuleSetSummary {
     /// Treatment count (for the card subtitle in the UI).
     #[ts(type = "number")]
     pub treatment_count: u32,
-    /// True for the three built-in rule sets that ship with Lantern.
+    /// True for the shipped built-in rule sets.
     pub is_builtin: bool,
     /// Absolute path to the `.lantern-rules.toml` file.
     pub path: String,

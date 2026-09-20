@@ -21,10 +21,11 @@
 //!
 //! # Built-in seeding
 //!
-//! [`seed_builtins_if_absent`] writes the three shipped rule sets ("Minimal
-//! clean", "Aggressive scrub", "Full scrub") to `<rules_dir>` if and only if
-//! they do not already exist.  It never overwrites a file the user has
-//! customised; callers can restore a built-in by deleting it first.
+//! [`seed_builtins_if_absent`] writes the shipped rule sets ("Minimal
+//! clean", "Aggressive scrub", "Full scrub", "Find duplicates") to
+//! `<rules_dir>` if and only if they do not already exist.  It never
+//! overwrites a file the user has customised; callers can restore a
+//! built-in by deleting it first.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -77,12 +78,16 @@ pub fn file_path_for(rules_dir: &Path, display_name: &str) -> PathBuf {
 // Built-in catalogue
 // ---------------------------------------------------------------------------
 
-/// Pairs of (display name, ordered treatment IDs) for the three shipped sets.
+/// Pairs of (display name, ordered treatment IDs) for the shipped sets.
 ///
 /// The same table is the canonical source used when seeding the rules
 /// directory and when `run_pass` falls back to a built-in if the on-disk file
 /// is missing.
-pub fn builtin_rule_sets() -> [(&'static str, &'static [&'static str]); 3] {
+///
+/// Destructive delete treatments (`structure.duplicates.exact_url`,
+/// `cross.dedupe`, `cross.empty_folders`) are **not** added to Minimal /
+/// Aggressive / Full.  Duplicate review is its own opt-in rule set.
+pub fn builtin_rule_sets() -> [(&'static str, &'static [&'static str]); 4] {
     [
         (
             "Minimal clean",
@@ -137,10 +142,11 @@ pub fn builtin_rule_sets() -> [(&'static str, &'static [&'static str]); 3] {
                 "folder.html_entities",
             ],
         ),
+        ("Find duplicates", &["structure.duplicates.exact_url"]),
     ]
 }
 
-/// True if `name` is one of the three built-in rule sets.
+/// True if `name` is one of the shipped built-in rule sets.
 pub fn is_builtin(name: &str) -> bool {
     builtin_rule_sets().iter().any(|(n, _)| *n == name)
 }
@@ -364,19 +370,20 @@ mod tests {
     }
 
     #[test]
-    fn seed_creates_three_builtins() {
+    fn seed_creates_shipped_builtins() {
         let dir = tempdir();
         let written = seed_builtins_if_absent(dir.path()).unwrap();
-        assert_eq!(written.len(), 3);
+        assert_eq!(written.len(), 4);
         assert!(file_path_for(dir.path(), "Minimal clean").exists());
         assert!(file_path_for(dir.path(), "Aggressive scrub").exists());
         assert!(file_path_for(dir.path(), "Full scrub").exists());
+        assert!(file_path_for(dir.path(), "Find duplicates").exists());
     }
 
     #[test]
     fn seed_is_idempotent() {
         let dir = tempdir();
-        assert_eq!(seed_builtins_if_absent(dir.path()).unwrap().len(), 3);
+        assert_eq!(seed_builtins_if_absent(dir.path()).unwrap().len(), 4);
         // Second call writes nothing.
         assert!(seed_builtins_if_absent(dir.path()).unwrap().is_empty());
     }
@@ -386,13 +393,41 @@ mod tests {
         let dir = tempdir();
         seed_builtins_if_absent(dir.path()).unwrap();
         let sets = list_rule_sets(dir.path()).unwrap();
-        assert_eq!(sets.len(), 3);
+        assert_eq!(sets.len(), 4);
         assert_eq!(sets[0].name, "Minimal clean");
         assert_eq!(sets[1].name, "Aggressive scrub");
         assert_eq!(sets[2].name, "Full scrub");
+        assert_eq!(sets[3].name, "Find duplicates");
         for s in &sets {
             assert!(s.is_builtin);
         }
+    }
+
+    #[test]
+    fn hygiene_sets_do_not_include_duplicate_deletes() {
+        for name in ["Minimal clean", "Aggressive scrub", "Full scrub"] {
+            let (_, ids) = builtin_rule_sets()
+                .into_iter()
+                .find(|(n, _)| *n == name)
+                .unwrap();
+            assert!(
+                !ids.contains(&"structure.duplicates.exact_url"),
+                "{name} must not silently delete duplicates"
+            );
+            assert!(
+                !ids.contains(&"cross.dedupe"),
+                "{name} must not silently delete duplicates"
+            );
+        }
+    }
+
+    #[test]
+    fn find_duplicates_is_exact_url_only() {
+        let (_, ids) = builtin_rule_sets()
+            .into_iter()
+            .find(|(n, _)| *n == "Find duplicates")
+            .unwrap();
+        assert_eq!(ids, &["structure.duplicates.exact_url"]);
     }
 
     #[test]
@@ -406,10 +441,10 @@ mod tests {
         )
         .unwrap();
         let sets = list_rule_sets(dir.path()).unwrap();
-        assert_eq!(sets.len(), 4);
-        assert_eq!(sets[3].name, "Custom cleanup"); // user set last
-        assert!(!sets[3].is_builtin);
-        assert_eq!(sets[3].treatment_count, 2);
+        assert_eq!(sets.len(), 5);
+        assert_eq!(sets[4].name, "Custom cleanup"); // user set last
+        assert!(!sets[4].is_builtin);
+        assert_eq!(sets[4].treatment_count, 2);
     }
 
     #[test]

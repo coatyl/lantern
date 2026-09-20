@@ -58,12 +58,12 @@ export function EmptyState({
       className={`flex-1 flex flex-col items-center justify-center
                   px-4 py-6 text-center gap-2 select-none ${className ?? ""}`}
     >
-      <div className="text-neutral-500" aria-hidden>
+      <div className="text-accent/80" aria-hidden>
         {icon ?? DEFAULT_ICON}
       </div>
-      <p className="text-xs font-semibold text-neutral-300">{title}</p>
+      <p className="font-display-tight text-sm text-ink">{title}</p>
       {description && (
-        <p className="text-[11px] text-neutral-500 max-w-xs leading-snug">
+        <p className="text-[11px] text-ink-muted max-w-xs leading-relaxed">
           {description}
         </p>
       )}

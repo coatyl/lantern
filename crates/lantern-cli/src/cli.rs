@@ -16,9 +16,10 @@ use anyhow::{anyhow, Context, Result};
 use clap::{Args, Parser, Subcommand};
 
 use lantern_core::emit::EmitOptions;
+use lantern_core::model::ids::NodeId;
 use lantern_core::model::node::{Folder, Node};
 use lantern_core::sanitize::pass::{run_pass, PassTarget, RuleSet};
-use lantern_core::sanitize::treatment::ChangeKind;
+use lantern_core::sanitize::treatment::{Change, ChangeKind};
 use lantern_io::rulestore::{builtin_rule_sets, is_builtin};
 use lantern_io::{build_ruleset, read_bookmark_file, read_ruleset, write_bookmark_file};
 
@@ -44,6 +45,10 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Apply a rule set to a bookmark file.
+    ///
+    /// Without `--dry-run` the CLI auto-approves every proposed change
+    /// (including destructive deletions such as Find duplicates) and
+    /// writes the result.  Inspect first with `--dry-run`.
     Sanitize(SanitizeArgs),
     /// Print structural information about a bookmark file.
     Info(InfoArgs),
@@ -63,8 +68,9 @@ struct SanitizeArgs {
 
     /// Built-in rule set to apply.  Default: `minimal-clean`.
     ///
-    /// Accepts the slug (`minimal-clean`) or the display name
-    /// (`Minimal clean`).  Mutually exclusive with `--rule-set-file`.
+    /// Accepts the slug (`minimal-clean`, `find-duplicates`) or the
+    /// display name (`Minimal clean`, `Find duplicates`).  Mutually
+    /// exclusive with `--rule-set-file`.
     #[arg(long, value_name = "NAME", conflicts_with = "rule_set_file")]
     rule_set: Option<String>,
 
@@ -73,6 +79,10 @@ struct SanitizeArgs {
     rule_set_file: Option<PathBuf>,
 
     /// Print a summary of proposed changes without writing the output.
+    ///
+    /// A real (non-dry-run) sanitize auto-approves every proposed change,
+    /// including destructive deletions.  Always inspect Find duplicates
+    /// with `--dry-run` before applying.
     #[arg(long)]
     dry_run: bool,
 }
@@ -130,7 +140,15 @@ fn run_sanitize(args: SanitizeArgs) -> Result<()> {
     let (set_field, delete_node, set_flag) = count_kinds(&cs.changes);
 
     if args.dry_run {
-        print_change_summary(&rule_set.name, total, set_field, delete_node, set_flag);
+        print_change_summary(
+            &rule_set.name,
+            total,
+            set_field,
+            delete_node,
+            set_flag,
+            &doc.root,
+            &cs.changes,
+        );
         return Ok(());
     }
 
@@ -178,13 +196,55 @@ fn print_change_summary(
     set_field: usize,
     delete_node: usize,
     set_flag: usize,
+    root: &Folder,
+    changes: &[Change],
 ) {
     println!("dry run: rule set \"{rule_set_name}\"");
     println!(
         "  proposed changes: {total} (field edits: {set_field}, \
          deletions: {delete_node}, flag updates: {set_flag})"
     );
+    if delete_node > 0 {
+        println!("  proposed deletions (destructive; not applied in dry-run):");
+        for change in changes {
+            if !matches!(change.kind, ChangeKind::DeleteNode) {
+                continue;
+            }
+            match find_bookmark_preview(root, change.node_id) {
+                Some((title, url)) => {
+                    println!("    - [{title}] {url}");
+                    println!("      {}", change.rationale);
+                }
+                None => {
+                    println!("    - node {} ({})", change.node_id, change.rationale);
+                }
+            }
+        }
+    }
+    println!(
+        "  note: without --dry-run the CLI auto-approves every proposed \
+         change, including deletions"
+    );
     println!("  no output file written");
+}
+
+/// Title + URL for a dry-run deletion line.  Folders and missing IDs
+/// return `None` so the caller can fall back to the node id.
+fn find_bookmark_preview(folder: &Folder, node_id: NodeId) -> Option<(String, String)> {
+    for child in &folder.children {
+        match child {
+            Node::Bookmark(b) if b.id == node_id => {
+                return Some((b.title.clone(), b.url.as_str().to_owned()));
+            }
+            Node::Folder(f) => {
+                if let Some(found) = find_bookmark_preview(f, node_id) {
+                    return Some(found);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn default_output_path(input: &Path) -> PathBuf {
@@ -267,6 +327,10 @@ fn describe_builtin(name: &str) -> &'static str {
         "Minimal clean" => "strip common UTM / click-id / tracking-fragment params, normalise whitespace",
         "Aggressive scrub" => "Minimal clean + session/affiliate/search params, fragment removal, email/handle scrubbing",
         "Full scrub" => "Aggressive scrub + path user segments, host demobilisation, shortener detection, author suffix",
+        "Find duplicates" => {
+            "propose deleting exact-URL duplicates, keeping the oldest (or first-seen); \
+             dry-run to review — a real run auto-approves deletions"
+        }
         _ => "(custom)",
     }
 }
@@ -369,6 +433,14 @@ mod tests {
             Some("Aggressive scrub")
         );
         assert_eq!(canonicalise_builtin_name("full-scrub"), Some("Full scrub"));
+        assert_eq!(
+            canonicalise_builtin_name("find-duplicates"),
+            Some("Find duplicates")
+        );
+        assert_eq!(
+            canonicalise_builtin_name("Find duplicates"),
+            Some("Find duplicates")
+        );
         assert_eq!(canonicalise_builtin_name("nope"), None);
     }
 }

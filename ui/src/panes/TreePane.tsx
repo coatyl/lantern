@@ -279,6 +279,7 @@ export default function TreePane() {
         <EmptyState
           icon={<EmptyFolderIcon />}
           title={t("empty.tree")}
+          description={t("empty.tree.description")}
           ariaLabel={t("empty.tree")}
           className="!py-8"
         />

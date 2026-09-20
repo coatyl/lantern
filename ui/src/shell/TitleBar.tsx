@@ -11,7 +11,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { useDocuments } from "../state/documents";
 import { ipc } from "../ipc";
 import { useT } from "../i18n/I18nProvider";
-import { ChevronDownIcon, GearIcon, LinkIcon } from "../components/Icons";
+import { ChevronDownIcon, GearIcon, HomeIcon, LinkIcon } from "../components/Icons";
 
 const appWindow = getCurrentWindow();
 
@@ -33,7 +33,7 @@ export default function TitleBar({
   canMergeDocuments?: boolean;
 }) {
   const t = useT();
-  const { activeTab, tabs } = useDocuments();
+  const { activeTab, tabs, showLibrary } = useDocuments();
   const [exporting, setExporting] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement | null>(null);
@@ -147,7 +147,7 @@ export default function TitleBar({
     <header
       data-tauri-drag-region
       className="h-8 flex items-center justify-between bg-surface-1
-                 border-b border-neutral-800/80 shrink-0 select-none"
+                 border-b border-[color:var(--border)]/70 shrink-0 select-none"
     >
       {/* ── Left: brand name ─────────────────────────────────────────────── */}
       <div
@@ -157,7 +157,7 @@ export default function TitleBar({
         {/* Micro lantern icon */}
         <svg
           viewBox="0 0 14 18"
-          className="w-3 h-3.5 shrink-0 text-accent"
+          className="w-3.5 h-4 shrink-0 text-accent lantern-glow"
           fill="currentColor"
           aria-hidden
         >
@@ -173,16 +173,38 @@ export default function TitleBar({
                 stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
           <ellipse cx="7" cy="9" rx="1.5" ry="2" opacity="0.7" />
         </svg>
-        <span className="text-[11px] font-semibold text-neutral-400 tracking-wider uppercase">
+        <span className="font-display text-[11px] text-ink-muted uppercase">
           Lantern
         </span>
       </div>
 
-      {/* ── Centre: document name + toolbar ──────────────────────────────── */}
+      {/* ── Centre: library + document name + toolbar ───────────────────── */}
       <div
         data-tauri-drag-region
         className="flex-1 h-full flex items-center justify-center gap-3"
       >
+        {tabs.length > 0 && (
+          <button
+            type="button"
+            onClick={showLibrary}
+            disabled={activeTab === null}
+            aria-current={activeTab === null ? "page" : undefined}
+            aria-label={t("titleBar.library")}
+            title={t("titleBar.libraryHint")}
+            className={`h-full px-2 flex items-center gap-1.5
+                        text-[10px] uppercase tracking-wider
+                        transition-colors focus:outline-none
+                        focus-visible:ring-1 focus-visible:ring-accent
+                        focus-visible:ring-inset select-none
+                        ${activeTab === null
+                          ? "text-accent"
+                          : "text-neutral-400 hover:text-neutral-100"
+                        }`}
+          >
+            <HomeIcon className="w-3 h-3" />
+            {t("titleBar.library")}
+          </button>
+        )}
         {activeInfo && (
           <>
             {/* audit P2 #21: neutral-500 (~3.7:1) → neutral-400 (~5.5:1) so the

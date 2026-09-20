@@ -15,6 +15,8 @@ import type { Translations } from "./types";
 export const en: Translations = {
   // ── Title bar ──────────────────────────────────────────────────────────
   "titleBar.open":             "Open",
+  "titleBar.library":          "Library",
+  "titleBar.libraryHint":      "Library (Ctrl+Shift+L)",
   "titleBar.tools":            "Tools",
   "titleBar.tools.diff":       "Compare tabs…",
   "titleBar.tools.deadLinks":  "Check dead links…",
@@ -59,15 +61,24 @@ export const en: Translations = {
   // ── Toasts (v0.0.11 QoL slice 1) ────────────────────────────────────────
   "toast.dismiss":             "Dismiss",
 
-  // ── Empty states (v0.0.11 QoL slice 1) ──────────────────────────────────
-  "empty.tree":                "This document has no folders yet.",
-  "empty.list":                "This folder is empty.",
-  "empty.list.description":    "Bookmarks added here will appear in this list.",
-  "empty.search":              "No matches for '{query}'.",
-  "empty.search.description":  "Try fewer search terms or relax the filters.",
-  "empty.deadlinks.preRun":    "Click 'Check links' to start.",
-  "empty.deadlinks.allGreen":  "All {count} links responded OK.",
+  // ── Welcome (warm-archive identity) ─────────────────────────────────────
+  "welcome.kicker":            "Private archive",
+  "welcome.title":             "Lantern",
+  "welcome.manifesto":         "A light in a dark room. The archive stays on this machine.",
+  "welcome.open":              "Open file…",
+  "welcome.hint":              "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
+
+  // ── Empty states (v0.0.11 QoL slice 1; warm-archive voice) ──────────────
+  "empty.tree":                "No folders in this archive yet.",
+  "empty.tree.description":    "Open a bookmark export that already has a folder tree, or add a folder to begin.",
+  "empty.list":                "Nothing filed here yet.",
+  "empty.list.description":    "Add a bookmark, or move one in from another folder.",
+  "empty.search":              "Nothing in this archive matches '{query}'.",
+  "empty.search.description":  "Try a shorter query, or ease the filters.",
+  "empty.deadlinks.preRun":    "Ready to check this archive.",
+  "empty.deadlinks.allGreen":  "All {count} links in this archive responded.",
   "empty.logs":                "No log entries yet.",
+  "empty.logs.description":    "When Lantern records activity, it will appear here.",
 
   // ── Loading shared (v0.0.11 QoL slice 1) ────────────────────────────────
   "loading.generic":           "Loading…",
@@ -84,4 +95,26 @@ export const en: Translations = {
   "commandPalette.search":       "Focus search",
   "commandPalette.toggleTheme":  "Toggle theme",
   "welcome.paletteHint":         "Press Ctrl+K (⌘K) to open the command palette.",
+  // ── Library home (the stacks; the workspace is inside a volume) ─────────
+  "library.region":                    "Library",
+  "library.title":                     "Library",
+  "library.subtitle":                  "A private collection of bookmark files on this machine.",
+  "library.empty.title":               "Your library is empty",
+  "library.empty.description":         "Open a bookmark file to start a private collection. Files you open stay listed here.",
+  "library.open":                      "Open file…",
+  "library.recentHeading":             "Recent volumes",
+  "library.recentCount":               "{n} volumes",
+  "library.clearRecent":               "Clear",
+  "library.clearing":                  "Clearing…",
+  "library.mostRecent":                "Most recent",
+  "library.openVolume":                "Open {name}",
+  "library.recovery.title":            "Recover previous session",
+  "library.recovery.description":      "Lantern did not shut down cleanly last time. Reopen the previous files?",
+  "library.recovery.dismiss":          "Dismiss",
+  "library.recovery.restore":          "Restore",
+  "library.recovery.restoring":        "Restoring…",
+  "library.recovery.failed":           "Could not restore the previous session.",
+  "library.recovery.partial":          "Restored {restored} files; {failed} could not be reopened.",
+  "library.recovery.more":             "+{n} more",
+  "library.hint":                      "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
 };

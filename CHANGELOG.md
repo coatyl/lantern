@@ -22,25 +22,41 @@ packaging hardening, etc.) continue on the way to v1.0.
   Export, Run pass, Focus search, Compare tabs, Check dead links,
   Merge documents, and Toggle theme. Welcome screen points at the
   shortcut; Settings → Keyboard lists it.
+- **core / cli:** exact-URL duplicate review pass
+  (`structure.duplicates.exact_url`) and a dedicated built-in rule set
+  **Find duplicates**. Groups bookmarks that share a URL after a light
+  canonicalisation (lowercase host, strip trailing slash), keeps the
+  oldest `ADD_DATE` (or first-seen), and proposes `DeleteNode` changes
+  that are destructive and unapproved. Query-parameter and fragment
+  differences are not collapsed in this slice. Minimal / Aggressive /
+  Full are unchanged. CLI `--dry-run` lists each proposed deletion;
+  a real `lantern sanitize` run still auto-approves (documented in
+  `--help` and `README.md`). The GUI does not auto-apply.
+- **ui:** library home replaces the one-shot welcome splash. Recent
+  files render as a collection of volumes (name, directory, most-recent
+  badge); empty and populated libraries are distinct layouts; crash
+  recovery stays on the home. A title-bar **Library** control returns
+  to the stacks without closing open tabs (`showLibrary` clears the
+  focused tab only). Browser-stub fixture mode seeds three recent
+  files so the populated home can be exercised; the pre-opened fixture
+  tab still mounts the three-pane workspace for existing e2e.
 - Cloud Agent development environment (`.cursor/environment.json` +
   `.cursor/install.sh`) so the workspace builds and tests on Linux.
 - `.nvmrc` pinning the Node.js version referenced by `CONTRIBUTING.md`.
 - `ROADMAP.md` outlining proposed post-1.0 directions.
+- `PHILOSOPHY.md` stating the major identity bets (archive vs. file
+  editor, curation vs. hygiene, local protocol, design language,
+  capability-free extensions, universal formats).
 
 ### Fixed
 
 - **ci:** the `changes` job no longer calls the Pulls API (which 403s
   under this account's restricted `GITHUB_TOKEN` — contents/metadata/
   packages only). Path filtering is now a `git diff`, and the workflow
-  declares `permissions: contents: read, pull-requests: read` so the
-  same "Resource not accessible by integration" failure cannot come
-  back. This is the same default that breaks `dorny/paths-filter` (and
-  any other Pulls-API action) on every repo under the account.
-- **ci:** `reproducible-build-check` no longer builds from two sibling
-  directories (`build-a` vs `build-b`); rustc/MSVC embed those absolute
-  paths, so the hashes could never match. It now rebuilds twice from
-  the same tree with `--remap-path-prefix` and MSVC `/Brepro`.
-
+  declares `permissions: contents: read, pull-requests: read`.
+- **ci:** `reproducible-build-check` rebuilds twice from the same tree
+  with `--remap-path-prefix` and MSVC `/Brepro`, instead of two sibling
+  checkouts whose absolute paths made the hashes impossible to match.
 - **ui:** the three-pane workspace now hydrates already-open documents on
   startup instead of only after an explicit open action; the welcome
   screen still shows when no document is open.
@@ -58,6 +74,13 @@ packaging hardening, etc.) continue on the way to v1.0.
 - Regenerated the `ts-rs` bindings (`DocDiffReport`, `RuleSetDetail`) that
   had drifted from their Rust doc comments.
 - Ignore per-host Playwright output and the Linux Tauri ACL schema.
+- **ui:** first cut of the warm-archive identity. Dark surfaces shift from
+  cool `#0a0a0a` greys to ink / brown-black; light theme is paper, not an
+  inverted IDE. The amber accent keeps a glow companion. Welcome is an
+  archive entrance (larger lantern mark + manifesto); empty states are
+  instructional rather than "no data". Title bar and status bar pick up
+  the wordmark and offline-badge treatment. Visual only — no new
+  network, telemetry, or font payload (Inter Variable already shipped).
 
 ---
 
