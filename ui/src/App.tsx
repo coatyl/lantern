@@ -25,6 +25,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import TitleBar from "./shell/TitleBar";
 import TabBar, { tabControlId, tabPanelId } from "./shell/TabBar";
 import StatusBar from "./shell/StatusBar";
+import LibraryHome from "./shell/LibraryHome";
 import TreePane from "./panes/TreePane";
 import ListPane from "./panes/ListPane";
 import DetailPane from "./panes/DetailPane";
@@ -48,6 +49,7 @@ export default function App() {
     tabs,
     activeTab,
     openFile,
+    showLibrary,
     refreshTabs,
     setActiveTab,
     refreshTree,
@@ -92,7 +94,7 @@ export default function App() {
 
   // Hydrate already-open documents on startup so the three-pane workspace
   // mounts without an explicit open action. On a normal cold start the
-  // backend reports no open tabs and we fall through to the welcome screen;
+  // backend reports no open tabs and we fall through to the library home;
   // when documents are already present (e.g. the pre-opened fixture used by
   // browser-preview / E2E mode) the first tab is activated automatically.
   useEffect(() => {
@@ -105,7 +107,7 @@ export default function App() {
           await setActiveTab(openTabs[0].id);
         }
       } catch {
-        // Not in a Tauri context (or IPC unavailable); stay on the welcome screen.
+        // Not in a Tauri context (or IPC unavailable); stay on the library home.
       }
     })();
     return () => {
@@ -128,6 +130,13 @@ export default function App() {
       if (e.ctrlKey && e.shiftKey && (e.key === "d" || e.key === "D")) {
         e.preventDefault();
         setDiffOpen(true);
+        return;
+      }
+
+      // Ctrl+Shift+L → library home (tabs stay open)
+      if (e.ctrlKey && e.shiftKey && (e.key === "l" || e.key === "L")) {
+        e.preventDefault();
+        showLibrary();
         return;
       }
 
@@ -190,7 +199,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [openFile, activeTab, tabs, refreshTree, refreshList]);
+  }, [openFile, showLibrary, activeTab, tabs, refreshTree, refreshList]);
 
   useEffect(() => {
     const preventBrowserButtons = (e: MouseEvent) => {
@@ -240,7 +249,8 @@ export default function App() {
       {/* Tab bar */}
       {tabs.length > 0 && <TabBar />}
 
-      {/* Three-pane workspace: only shown when a document is open */}
+      {/* Three-pane workspace: shown when a volume tab is focused.
+          Library home is the stacks; this pane is inside a volume. */}
       {activeTab !== null ? (
         <main
           className="flex flex-1 min-h-0"
@@ -264,7 +274,7 @@ export default function App() {
           </aside>
         </main>
       ) : (
-        <WelcomeScreen onOpen={openFile} />
+        <LibraryHome onOpen={openFile} />
       )}
 
       {/* Status bar */}

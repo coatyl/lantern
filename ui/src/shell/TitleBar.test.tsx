@@ -11,11 +11,16 @@ vi.mock("../ipc", () => ({
   },
 }));
 
+interface TitleBarStore {
+  activeTab: number | null;
+  tabs: { id: number; title: string; path: string | null; dirty: boolean }[];
+  showLibrary: () => void;
+}
+
+let storeState: TitleBarStore;
+
 vi.mock("../state/documents", () => ({
-  useDocuments: () => ({
-    activeTab: null,
-    tabs: [],
-  }),
+  useDocuments: () => storeState,
 }));
 
 function renderTitleBar(props: Partial<React.ComponentProps<typeof TitleBar>> = {}) {
@@ -38,6 +43,11 @@ function renderTitleBar(props: Partial<React.ComponentProps<typeof TitleBar>> = 
 describe("TitleBar: Tools menu keyboard accessibility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    storeState = {
+      activeTab: null,
+      tabs: [],
+      showLibrary: vi.fn(),
+    };
   });
 
   it("opens the Tools menu when Space is pressed on the trigger", async () => {
@@ -120,5 +130,36 @@ describe("TitleBar: Tools menu keyboard accessibility", () => {
 
     await user.keyboard("{Home}");
     expect(items[0]).toHaveFocus();
+  });
+});
+
+describe("TitleBar: Library", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    storeState = {
+      activeTab: 1,
+      tabs: [{ id: 1, title: "small.html", path: "C:/tmp/small.html", dirty: false }],
+      showLibrary: vi.fn(),
+    };
+  });
+
+  it("shows a Library control that returns home without closing tabs", async () => {
+    const user = userEvent.setup();
+    renderTitleBar();
+
+    const library = screen.getByRole("button", { name: "Library" });
+    expect(library).toBeEnabled();
+    await user.click(library);
+    expect(storeState.showLibrary).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides Library when no volumes are open", () => {
+    storeState = {
+      activeTab: null,
+      tabs: [],
+      showLibrary: vi.fn(),
+    };
+    renderTitleBar();
+    expect(screen.queryByRole("button", { name: "Library" })).not.toBeInTheDocument();
   });
 });

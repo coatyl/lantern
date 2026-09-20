@@ -26,25 +26,31 @@ packaging hardening, etc.) continue on the way to v1.0.
   supported input so the GUI can open the result later. `info` (and
   `sanitize`) accept JSON too.
 - Welcome screen notes that Chrome Bookmarks JSON is accepted.
+- **ui:** library home replaces the one-shot welcome splash. Recent
+  files render as a collection of volumes (name, directory, most-recent
+  badge); empty and populated libraries are distinct layouts; crash
+  recovery stays on the home. A title-bar **Library** control returns
+  to the stacks without closing open tabs (`showLibrary` clears the
+  focused tab only). Browser-stub fixture mode seeds three recent
+  files so the populated home can be exercised; the pre-opened fixture
+  tab still mounts the three-pane workspace for existing e2e.
 - Cloud Agent development environment (`.cursor/environment.json` +
   `.cursor/install.sh`) so the workspace builds and tests on Linux.
 - `.nvmrc` pinning the Node.js version referenced by `CONTRIBUTING.md`.
 - `ROADMAP.md` outlining proposed post-1.0 directions.
+- `PHILOSOPHY.md` stating the major identity bets (archive vs. file
+  editor, curation vs. hygiene, local protocol, design language,
+  capability-free extensions, universal formats).
 
 ### Fixed
 
 - **ci:** the `changes` job no longer calls the Pulls API (which 403s
   under this account's restricted `GITHUB_TOKEN` — contents/metadata/
   packages only). Path filtering is now a `git diff`, and the workflow
-  declares `permissions: contents: read, pull-requests: read` so the
-  same "Resource not accessible by integration" failure cannot come
-  back. This is the same default that breaks `dorny/paths-filter` (and
-  any other Pulls-API action) on every repo under the account.
-- **ci:** `reproducible-build-check` no longer builds from two sibling
-  directories (`build-a` vs `build-b`); rustc/MSVC embed those absolute
-  paths, so the hashes could never match. It now rebuilds twice from
-  the same tree with `--remap-path-prefix` and MSVC `/Brepro`.
-
+  declares `permissions: contents: read, pull-requests: read`.
+- **ci:** `reproducible-build-check` rebuilds twice from the same tree
+  with `--remap-path-prefix` and MSVC `/Brepro`, instead of two sibling
+  checkouts whose absolute paths made the hashes impossible to match.
 - **ui:** the three-pane workspace now hydrates already-open documents on
   startup instead of only after an explicit open action; the welcome
   screen still shows when no document is open.
