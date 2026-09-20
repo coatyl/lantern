@@ -59,6 +59,13 @@ export const en: Translations = {
   // ── Toasts (v0.0.11 QoL slice 1) ────────────────────────────────────────
   "toast.dismiss":             "Dismiss",
 
+  // ── Welcome (warm-archive identity) ─────────────────────────────────────
+  "welcome.kicker":            "Private archive",
+  "welcome.title":             "Lantern",
+  "welcome.manifesto":         "A light in a dark room. The archive stays on this machine.",
+  "welcome.open":              "Open file…",
+  "welcome.hint":              "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
+
   // ── Empty states (v0.0.11 QoL slice 1) ──────────────────────────────────
   "empty.tree":                "This document has no folders yet.",
   "empty.list":                "This folder is empty.",
