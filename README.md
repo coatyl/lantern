@@ -61,7 +61,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full developer setup, common co
 
 ## Use
 
-1. **Open** a `bookmarks.html` file (Ctrl+O); every major browser exports to this format.
+1. **Open** a `bookmarks.html` file (Ctrl+O), or a Chrome / Chromium `Bookmarks` JSON file from the profile directory. Firefox HTML already uses the same Netscape format.
 2. **Browse** the folder hierarchy in the tree pane; the list pane shows the contents of the focused folder.
 3. **Sanitise** a selection, a folder, or the whole document. Lantern proposes changes; you review them in a diff before anything is applied.
 4. **Apply** the subset you approve. Undo restores the previous state byte-for-byte.
@@ -77,6 +77,9 @@ The `lantern-cli` crate builds a headless `lantern` binary that runs the same sa
 ```powershell
 # Print structural information about a bookmark file (counts, depth).
 lantern info bookmarks.html
+
+# Convert Chrome Bookmarks JSON (or Netscape HTML) to Netscape HTML.
+lantern convert Bookmarks -o bookmarks.html
 
 # Apply a built-in rule set and write the cleaned copy to a new file.
 lantern sanitize bookmarks.html --rule-set full-scrub --output cleaned.html

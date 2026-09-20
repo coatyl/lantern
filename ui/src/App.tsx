@@ -135,7 +135,10 @@ export default function App() {
       if (e.ctrlKey && !e.shiftKey && e.key === "o") {
         e.preventDefault();
         const selected = await open({
-          filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
+          filters: [
+            { name: "Bookmark files", extensions: ["html", "htm", "json"] },
+            { name: "All files", extensions: ["*"] },
+          ],
           multiple: false,
         });
         if (typeof selected === "string") {
@@ -378,7 +381,10 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
 
   const handleOpen = async () => {
     const selected = await open({
-      filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
+      filters: [
+        { name: "Bookmark files", extensions: ["html", "htm", "json"] },
+        { name: "All files", extensions: ["*"] },
+      ],
       multiple: false,
     });
     if (typeof selected === "string") {
@@ -441,7 +447,9 @@ function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) 
 
       <div className="text-center">
         <h1 className="text-xl font-semibold text-neutral-200 mb-1 tracking-wide">Lantern</h1>
-        <p className="text-sm text-neutral-500">Open a bookmark file to get started.</p>
+        <p className="text-sm text-neutral-500">
+          Open a Netscape HTML export or a Chrome Bookmarks JSON file to get started.
+        </p>
       </div>
 
       <button
