@@ -8,11 +8,13 @@ shell (`lantern-app`), and a headless CLI (`lantern-cli`).
 
 This document is deliberately forward-looking. The near-term slices already
 tracked in `CHANGELOG.md` (CLI subcommand expansion, more locales, ARM64,
-MSIX hardening) stay as-is. What follows are **a few very ambitious
-directions** — each one is a multi-milestone bet, written so we can argue
-about it later, not a committed plan. Every proposal is measured against
-Lantern's non-negotiable: **local-only by default, no telemetry, the network
-is opt-in and quarantined in `lantern-net`.**
+MSIX hardening) stay as-is. The *identity* bets — what Lantern becomes if
+we stop being a one-shot HTML scrubber — live in [`PHILOSOPHY.md`](PHILOSOPHY.md).
+What follows are **a few very ambitious directions** — each one is a
+multi-milestone bet, written so we can argue about it later, not a committed
+plan. Every proposal is measured against Lantern's non-negotiable:
+**local-only by default, no telemetry, the network is opt-in and quarantined
+in `lantern-net`.**
 
 ---
 

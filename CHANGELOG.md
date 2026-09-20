@@ -22,6 +22,9 @@ packaging hardening, etc.) continue on the way to v1.0.
   `.cursor/install.sh`) so the workspace builds and tests on Linux.
 - `.nvmrc` pinning the Node.js version referenced by `CONTRIBUTING.md`.
 - `ROADMAP.md` outlining proposed post-1.0 directions.
+- `PHILOSOPHY.md` stating the major identity bets (archive vs. file
+  editor, curation vs. hygiene, local protocol, design language,
+  capability-free extensions, universal formats).
 
 ### Fixed
 
