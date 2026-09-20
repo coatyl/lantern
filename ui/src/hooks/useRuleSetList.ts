@@ -1,7 +1,7 @@
 /**
  * Fetches the rule-set list from the backend and keeps it in sync.
  *
- * Returns a graceful fallback of the 3 built-in names when the backend is
+ * Returns a graceful fallback of the shipped built-in names when the backend is
  * unavailable (e.g. in browser-mode stubs) so the picker never comes up empty.
  */
 
@@ -10,13 +10,14 @@ import { ipc } from "../ipc";
 import type { RuleSetSummary } from "../ipc/types";
 
 // ---------------------------------------------------------------------------
-// Fallback: mirrors the 3 seeded built-ins so the picker works offline
+// Fallback: mirrors the seeded built-ins so the picker works offline
 // ---------------------------------------------------------------------------
 
 const FALLBACK: RuleSetSummary[] = [
-  { name: "Minimal clean",    treatment_count: 5,  is_builtin: true, path: "" },
-  { name: "Aggressive scrub", treatment_count: 11, is_builtin: true, path: "" },
+  { name: "Minimal clean",    treatment_count: 7,  is_builtin: true, path: "" },
+  { name: "Aggressive scrub", treatment_count: 13, is_builtin: true, path: "" },
   { name: "Full scrub",       treatment_count: 18, is_builtin: true, path: "" },
+  { name: "Find duplicates",  treatment_count: 1,  is_builtin: true, path: "" },
 ];
 
 // Short descriptions for built-ins (not stored on disk, display only).
@@ -27,6 +28,8 @@ export const BUILTIN_DESCRIPTIONS: Record<string, string> = {
     "All tracking params (UTM, click IDs, session, affiliate, search noise) · all fragments · email + handle title cleaners · folder mirrors",
   "Full scrub":
     "Everything in Aggressive scrub + user-segment paths · HTTP → HTTPS · demobilize hosts · author-suffix titles (each change requires review)",
+  "Find duplicates":
+    "Propose deleting exact-URL duplicates, keeping the oldest (or first-seen). Review every deletion; the GUI never auto-applies.",
 };
 
 // ---------------------------------------------------------------------------

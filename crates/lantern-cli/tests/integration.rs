@@ -17,6 +17,13 @@ fn fixture_path() -> PathBuf {
         .join("small.html")
 }
 
+fn duplicates_fixture_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("duplicates.html")
+}
+
 fn lantern() -> Command {
     Command::cargo_bin("lantern").expect("lantern binary builds in this crate")
 }
@@ -109,14 +116,57 @@ fn sanitize_writes_valid_bookmark_file() {
 }
 
 #[test]
-fn rule_sets_lists_three_builtins() {
+fn rule_sets_lists_shipped_builtins() {
     lantern()
         .arg("rule-sets")
         .assert()
         .success()
         .stdout(predicate::str::contains("Minimal clean"))
         .stdout(predicate::str::contains("Aggressive scrub"))
-        .stdout(predicate::str::contains("Full scrub"));
+        .stdout(predicate::str::contains("Full scrub"))
+        .stdout(predicate::str::contains("Find duplicates"));
+}
+
+#[test]
+fn sanitize_find_duplicates_dry_run_lists_proposed_deletes() {
+    let fixture = duplicates_fixture_path();
+    let tmp = tempfile::tempdir().unwrap();
+    let phantom_output = tmp.path().join("must-not-exist.html");
+
+    let assert = lantern()
+        .arg("sanitize")
+        .arg(&fixture)
+        .arg("-o")
+        .arg(&phantom_output)
+        .arg("--rule-set")
+        .arg("find-duplicates")
+        .arg("--dry-run")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "dry run: rule set \"Find duplicates\"",
+        ))
+        .stdout(predicate::str::contains("deletions: 1"))
+        .stdout(predicate::str::contains("proposed deletions"))
+        .stdout(predicate::str::contains("Newer copy"))
+        .stdout(predicate::str::contains("https://example.com/same"))
+        .stdout(predicate::str::contains("auto-approves"))
+        .stdout(predicate::str::contains("no output file written"));
+
+    let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(
+        !output.contains("Query differs"),
+        "query-param near-dupes must not be proposed; stdout was: {output}"
+    );
+    assert!(
+        !output.contains("Unique bookmark"),
+        "unique URLs must not be proposed; stdout was: {output}"
+    );
+    assert!(
+        !phantom_output.exists(),
+        "dry run unexpectedly wrote {}",
+        phantom_output.display()
+    );
 }
 
 // ---------------------------------------------------------------------------
