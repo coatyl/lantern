@@ -318,7 +318,7 @@ export function DeadLinkModal({
             <EmptyState
               icon={<EmptySearchIcon />}
               title={t("empty.deadlinks.preRun")}
-              description="Run the checker to classify bookmark URLs as OK, redirect, error, timeout, network error, or skipped."
+              description="Run the checker to classify URLs as OK, redirect, error, timeout, network error, or skipped. It stays off until you ask."
               ariaLabel={t("empty.deadlinks.preRun")}
             />
           )}

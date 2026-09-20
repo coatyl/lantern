@@ -136,7 +136,7 @@ export function GeneralPane({ settings, setSettings }: GeneralPaneProps) {
         <p className="mt-1 text-[10px] text-neutral-700">
           {settings.recent_files_max === 0
             ? "Recent files list disabled."
-            : `Show up to ${settings.recent_files_max} recent files on the welcome screen.`}
+            : `Show up to ${settings.recent_files_max} recent files on the library home.`}
         </p>
       </section>
 

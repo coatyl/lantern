@@ -19,16 +19,29 @@
    --------------------------------------------------------------------------- */
 
 :root {
-  /* Surfaces */
-  --surface-0: #0a0a0a;
-  --surface-1: #111111;
-  --surface-2: #1a1a1a;
-  --surface-3: #222222;
-  --surface-4: #2a2a2a;
+  /* Surfaces: warm ink / brown-black.  Luminance stays near the old
+     #0a0a0a stack so existing text-neutral-* utilities keep their
+     documented contrast (P2 #21 / #22).  #100e0c is ~0.004 relative
+     luminance vs ~0.003 for #0a0a0a. */
+  --surface-0: #100e0c;
+  --surface-1: #181512;
+  --surface-2: #211c18;
+  --surface-3: #2b241e;
+  --surface-4: #352c24;
 
-  /* Accent (amber warm-glow): RGB channels for <alpha-value> support */
-  --accent:       245 158 11;   /* amber-500 */
-  --accent-hover: 251 191 36;   /* amber-400 */
+  /* Accent (lantern flame): RGB channels for <alpha-value> support.
+     Honey-amber stays in the amber family; --accent-glow is the halo
+     used by drop-shadows, not body copy. */
+  --accent:       232 149 22;   /* honey-amber, ~8:1 on surface-0 */
+  --accent-hover: 251 191 36;   /* amber-400 flame */
+  --accent-glow:  255 200 80;
+
+  /* Theme-aware ink: branded surfaces (welcome, empty states, wordmark)
+     use these instead of Tailwind's cool neutrals so light theme is a
+     first-class paper reading, not a broken inversion. */
+  --ink:       244 237 228;     /* warm paper-white, ~20:1 on surface-0 */
+  --ink-muted: 176 164 148;     /* ~7.8:1 on surface-0 */
+  --ink-faint: 122 110 96;      /* ≥3:1 UI / large hint text */
 
   /* Danger (destructive actions).  Audit P2 #21: red-500 (~3.8:1) bumped to
      red-400 (~4.7:1) so destructive copy clears WCAG AA on dark surfaces. */
@@ -38,48 +51,52 @@
   --diff-removed: 248 113 113;  /* red-400 */
   --diff-added:   74 222 128;   /* green-400 */
 
-  /* Border.  Audit P2 #22: neutral-800 (~3:1) bumped to neutral-700 (~4.1:1)
-     so input borders / divider lines clear the 3:1 UI floor with margin. */
-  --border: #404040;            /* neutral-700 */
+  /* Border.  Audit P2 #22: keep ≥ 3:1 against surface-0; warmed so it
+     does not read as a cool IDE chrome line. */
+  --border: #4a4038;
 
   /* Scrollbar: track + thumb (overridable per theme) */
-  --scrollbar-thumb:       #333333;
-  --scrollbar-thumb-hover: #4a4a4a;
+  --scrollbar-thumb:       #3a322c;
+  --scrollbar-thumb-hover: #53483e;
 }
 
-/* Light theme: surfaces flip from near-black to near-white, accent stays
-   amber so brand identity carries across themes.  Borders, scrollbars, and
-   the diff palette are all retuned for sufficient contrast on light surfaces
-   (border ≥ 3:1 against surface-0; diff colours stay AA-readable on white). */
+/* Light theme: paper, not inverted greys.  Accent stays in the amber
+   family so the lantern mark reads the same in both rooms.  Borders,
+   scrollbars, and the diff palette are retuned for contrast on cream
+   (border ≥ 3:1 UI floor against surface-0; diff colours stay AA on paper). */
 :root[data-theme="light"] {
-  /* Surfaces: progressively darker greys */
-  --surface-0: #ffffff;
-  --surface-1: #f7f7f7;
-  --surface-2: #efefef;
-  --surface-3: #e6e6e6;
-  --surface-4: #dcdcdc;
+  /* Surfaces: warm paper stack, progressively deeper fibre */
+  --surface-0: #f7f1e8;
+  --surface-1: #efe6d8;
+  --surface-2: #e6dccb;
+  --surface-3: #d9cdb8;
+  --surface-4: #cdc0a8;
 
-  /* Accent stays amber (245 158 11) and provides ~3.0:1 on white, fine for
-     icons, ring outlines, and large text.  Body copy uses neutral-* utilities
-     so the accent isn't load-bearing for readability. */
-  --accent:       245 158 11;
-  --accent-hover: 180 83 9;      /* audit P2 #21: amber-600 → amber-700 (~5.5:1)
-                                    so hover text on white passes WCAG AA. */
+  /* Accent: slightly deeper honey so icons/rings hold on cream.  Hover
+     is amber-700 (~5.5:1 on paper) — audit P2 #21.  Body copy uses --ink
+     so the accent is never load-bearing for readability. */
+  --accent:       217 119 6;     /* amber-600 */
+  --accent-hover: 180 83 9;      /* amber-700 */
+  --accent-glow:  217 119 6;
 
-  /* Danger: red-600 hits ~4.5:1 against white */
+  --ink:       42 34 26;         /* warm near-black, ~16:1 on surface-0 */
+  --ink-muted: 92 78 62;         /* ~8.3:1 on surface-0 */
+  --ink-faint: 130 114 94;       /* ~4.6:1, AA for small copy */
+
+  /* Danger: red-600 hits ~4.5:1 against paper */
   --danger: 220 38 38;           /* red-600 */
 
   /* Diff preview: red-600 / green-700 deepen for AA on light surfaces */
-  --diff-removed: 220 38 38;     /* red-600   ~5:1 vs white */
-  --diff-added:    21 128 61;    /* green-700 ~5:1 vs white */
+  --diff-removed: 220 38 38;     /* red-600   ~5:1 vs paper */
+  --diff-added:    21 128 61;    /* green-700 ~5:1 vs paper */
 
-  /* Border.  Audit P2 #22: neutral-300 (~1.5:1) bumped to neutral-400 (~2.4:1)
-     for inputs/dividers; still soft enough not to fight the white surface. */
-  --border: #a3a3a3;             /* neutral-400 */
+  /* Border.  Audit P2 #22: warm analogue of the old neutral-400 (~2.4:1)
+     floor; still soft enough not to fight the paper surface. */
+  --border: #a89880;
 
-  /* Scrollbar: light-mode greys */
-  --scrollbar-thumb:       #c8c8c8;
-  --scrollbar-thumb-hover: #a3a3a3;
+  /* Scrollbar: warm light-mode greys */
+  --scrollbar-thumb:       #c4b49a;
+  --scrollbar-thumb-hover: #a89880;
 }
 
 /* ---------------------------------------------------------------------------
@@ -177,6 +194,41 @@ html, body, #root {
 
 .animate-toast-in {
   animation: toast-in 0.18s ease-out both;
+}
+
+/* ---------------------------------------------------------------------------
+   Display type + lantern glow
+   ---------------------------------------------------------------------------
+   Inter Variable already ships (wght 100–900).  Titles / welcome / empty
+   states use a light, tracked treatment of that same face — no extra font
+   payload.  UI chrome stays at the default sans stack.
+   --------------------------------------------------------------------------- */
+
+.font-display {
+  font-family: "Inter Variable", Inter, "Segoe UI", system-ui, sans-serif;
+  font-weight: 320;
+  letter-spacing: 0.16em;
+  font-variation-settings: "wght" 320;
+}
+
+.font-display-tight {
+  font-family: "Inter Variable", Inter, "Segoe UI", system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  font-variation-settings: "wght" 500;
+}
+
+.lantern-glow {
+  filter: drop-shadow(0 0 18px rgb(var(--accent-glow) / 0.45));
+}
+
+.lantern-halo {
+  background: radial-gradient(
+    ellipse at center,
+    rgb(var(--accent-glow) / 0.22) 0%,
+    rgb(var(--accent-glow) / 0.08) 38%,
+    transparent 70%
+  );
 }
 
 /* ---------------------------------------------------------------------------
