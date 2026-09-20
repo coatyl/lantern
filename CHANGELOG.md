@@ -18,6 +18,10 @@ packaging hardening, etc.) continue on the way to v1.0.
 
 ### Added
 
+- **ui:** command palette (`Ctrl+K` / `⌘K`) for Open file, Settings,
+  Export, Run pass, Focus search, Compare tabs, Check dead links,
+  Merge documents, and Toggle theme. Welcome screen points at the
+  shortcut; Settings → Keyboard lists it.
 - **core / cli:** exact-URL duplicate review pass
   (`structure.duplicates.exact_url`) and a dedicated built-in rule set
   **Find duplicates**. Groups bookmarks that share a URL after a light

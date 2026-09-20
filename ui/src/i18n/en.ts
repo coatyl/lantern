@@ -83,6 +83,18 @@ export const en: Translations = {
   // ── Loading shared (v0.0.11 QoL slice 1) ────────────────────────────────
   "loading.generic":           "Loading…",
 
+  // ── Command palette ─────────────────────────────────────────────────────
+  "commandPalette.title":        "Command palette",
+  "commandPalette.placeholder":  "Type a command…",
+  "commandPalette.empty":        "No matching commands.",
+  "commandPalette.hint":         "↑↓ to move · Enter to run · Esc to close",
+  "commandPalette.shortcut":     "Ctrl+K / ⌘K",
+  "commandPalette.openFile":     "Open file",
+  "commandPalette.export":       "Export…",
+  "commandPalette.runPass":      "Run pass",
+  "commandPalette.search":       "Focus search",
+  "commandPalette.toggleTheme":  "Toggle theme",
+  "welcome.paletteHint":         "Press Ctrl+K (⌘K) to open the command palette.",
   // ── Library home (the stacks; the workspace is inside a volume) ─────────
   "library.region":                    "Library",
   "library.title":                     "Library",

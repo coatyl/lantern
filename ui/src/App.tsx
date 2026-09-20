@@ -15,12 +15,13 @@
  *   └─────────────────────────────────────────────────────┘
  */
 
-import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { useEffect, useMemo, useState } from "react";
+import { open, save } from "@tauri-apps/plugin-dialog";
 
 import { useDocuments } from "./state/documents";
 import { ipc } from "./ipc";
-import { useTheme } from "./hooks/useTheme";
+import { applyTheme, resolveTheme, useTheme } from "./hooks/useTheme";
+import { useT } from "./i18n/I18nProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
 import TitleBar from "./shell/TitleBar";
 import TabBar, { tabControlId, tabPanelId } from "./shell/TabBar";
@@ -33,6 +34,13 @@ import { SettingsModal } from "./components/SettingsModal";
 import { DiffModal } from "./components/DiffModal";
 import { DeadLinkModal } from "./components/DeadLinkModal";
 import { MergePickerModal } from "./components/MergePickerModal";
+import { CommandPalette } from "./components/CommandPalette";
+import {
+  requestRunPass,
+  requestSearchFocus,
+  type CommandId,
+  type PaletteCommand,
+} from "./components/commandPalette";
 import Toaster from "./components/Toast";
 import { useT } from "./i18n/I18nProvider";
 
@@ -46,6 +54,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export default function App() {
+  const t = useT();
   const {
     tabs,
     activeTab,
@@ -65,12 +74,15 @@ export default function App() {
   const [diffOpen, setDiffOpen] = useState(false);
   const [deadLinkOpen, setDeadLinkOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [themeNonce, setThemeNonce] = useState(0);
   const [density, setDensity] = useState<"compact" | "comfortable">("compact");
 
-  // Theme: read on mount, re-read whenever the settings modal closes.  The
-  // hook also subscribes to OS prefers-color-scheme changes when the user
-  // setting is "system".
-  useTheme(settingsOpen);
+  // Theme: read on mount, re-read whenever the settings modal closes or
+  // the command-palette toggle writes a new theme.  The hook also
+  // subscribes to OS prefers-color-scheme changes when the user setting
+  // is "system".
+  useTheme(settingsOpen || themeNonce);
 
   // Pull list density from settings on mount and again whenever the settings
   // modal closes, so toggling the option updates the layout immediately.
@@ -117,9 +129,124 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const openBookmarkFile = async () => {
+    const selected = await open({
+      filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
+      multiple: false,
+    });
+    if (typeof selected === "string") {
+      await openFile(selected);
+    }
+  };
+
+  const exportActiveDocument = async () => {
+    if (activeTab === null) return;
+    try {
+      const path = await save({
+        filters: [{ name: "HTML bookmark file", extensions: ["html", "htm"] }],
+        defaultPath: "bookmarks.html",
+      });
+      if (typeof path === "string") {
+        await ipc.export(activeTab, { kind: "whole_document" }, path);
+      }
+    } catch {
+      // user cancelled or export failed
+    }
+  };
+
+  const toggleTheme = async () => {
+    try {
+      const s = await ipc.getSettings();
+      const next = resolveTheme(s.theme) === "dark" ? "light" : "dark";
+      await ipc.updateSettings({ ...s, theme: next });
+      applyTheme(next);
+      setThemeNonce((n) => n + 1);
+    } catch {
+      // not in Tauri context
+    }
+  };
+
+  const runPaletteCommand = (id: CommandId) => {
+    setPaletteOpen(false);
+    // Defer until the palette focus trap has restored the prior element,
+    // so the destination (settings dialog, search input, …) keeps focus.
+    window.setTimeout(() => {
+      switch (id) {
+        case "open_file":
+          void openBookmarkFile();
+          break;
+        case "settings":
+          setSettingsOpen(true);
+          break;
+        case "export":
+          void exportActiveDocument();
+          break;
+        case "run_pass":
+          requestRunPass();
+          break;
+        case "search_focus":
+          requestSearchFocus();
+          break;
+        case "compare_tabs":
+          setDiffOpen(true);
+          break;
+        case "check_dead_links":
+          setDeadLinkOpen(true);
+          break;
+        case "merge_documents":
+          setMergeOpen(true);
+          break;
+        case "toggle_theme":
+          void toggleTheme();
+          break;
+      }
+    }, 0);
+  };
+
+  const paletteCommands: PaletteCommand[] = useMemo(
+    () => [
+      { id: "open_file", label: t("commandPalette.openFile"), shortcut: "Ctrl+O", enabled: true },
+      { id: "settings", label: t("titleBar.settings"), shortcut: "Ctrl+,", enabled: true },
+      { id: "export", label: t("commandPalette.export"), shortcut: "Ctrl+E", enabled: activeTab !== null },
+      { id: "run_pass", label: t("commandPalette.runPass"), shortcut: "Ctrl+R", enabled: activeTab !== null },
+      { id: "search_focus", label: t("commandPalette.search"), shortcut: "Ctrl+F", enabled: activeTab !== null },
+      {
+        id: "compare_tabs",
+        label: t("titleBar.tools.diff"),
+        shortcut: "Ctrl+Shift+D",
+        enabled: tabs.length >= 2,
+      },
+      {
+        id: "check_dead_links",
+        label: t("titleBar.tools.deadLinks"),
+        enabled: activeTab !== null,
+      },
+      {
+        id: "merge_documents",
+        label: t("titleBar.tools.merge"),
+        shortcut: "Ctrl+M",
+        enabled: tabs.length >= 1,
+      },
+      { id: "toggle_theme", label: t("commandPalette.toggleTheme"), enabled: true },
+    ],
+    [t, activeTab, tabs.length],
+  );
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
+      // Ctrl+K / Cmd+K → command palette (toggle)
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        (e.key === "k" || e.key === "K")
+      ) {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+        return;
+      }
+
       // Ctrl+, → settings
       if (e.ctrlKey && !e.shiftKey && e.key === ",") {
         e.preventDefault();
@@ -144,13 +271,7 @@ export default function App() {
       // Ctrl+O → open file
       if (e.ctrlKey && !e.shiftKey && e.key === "o") {
         e.preventDefault();
-        const selected = await open({
-          filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
-          multiple: false,
-        });
-        if (typeof selected === "string") {
-          await openFile(selected);
-        }
+        await openBookmarkFile();
         return;
       }
 
@@ -284,6 +405,13 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
       />
 
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={paletteCommands}
+        onRun={runPaletteCommand}
+      />
+
       {/* Compare tabs modal: opened by Ctrl+Shift+D */}
       <DiffModal
         open={diffOpen}
@@ -360,6 +488,7 @@ export function LanternLogo() {
   );
 }
 
+function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) {
 export function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<void> }) {
   const t = useT();
   const { refreshTabs, setActiveTab } = useDocuments();
@@ -556,6 +685,12 @@ export function WelcomeScreen({ onOpen }: { onOpen: (path: string) => Promise<vo
         </div>
       )}
 
+      <p className="text-xs text-neutral-500">
+        {t("welcome.paletteHint")}
+      </p>
+
+      <p className="text-[11px] text-neutral-700 mt-2">
+        Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported
       <p className="text-[11px] text-ink-faint mt-2">
         {t("welcome.hint")}
       </p>
