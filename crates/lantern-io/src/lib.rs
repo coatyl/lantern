@@ -8,8 +8,8 @@
 //! # Public API (TDD §6)
 //!
 //! ```text
-//! read_bookmark_file(path)          → Document
-//! write_bookmark_file(path, doc)    → ()       [atomic, source protected]
+//! read_bookmark_file(path)          → Document  [HTML or Chrome JSON]
+//! write_bookmark_file(path, doc)    → ()       [atomic, source protected, Netscape HTML]
 //! read_settings(path)               → Settings
 //! write_settings(path, settings)    → ()       [atomic]
 //! read_ruleset(path)                → RuleSet
