@@ -222,7 +222,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-    <div className="flex flex-col h-screen bg-surface-0 text-neutral-100 overflow-hidden">
+    <div className="flex flex-col h-screen bg-surface-0 text-ink overflow-hidden">
       {/* Custom title bar (window is frameless) */}
       <TitleBar
         onSettings={() => setSettingsOpen(true)}
