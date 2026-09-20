@@ -9,7 +9,7 @@
  * Two modes are supported:
  *
  * 1. **Default** (no fixture).  Every `invoke` rejects.  Matches the
- *    historical behaviour the welcome screen relies on: non-critical
+ *    historical behaviour the library home relies on: non-critical
  *    IPC paths swallow the rejection in their `try { ... } catch {}`
  *    blocks and render reasonable defaults.
  *
@@ -77,10 +77,12 @@ function dispatch(
 ): unknown {
   switch (cmd) {
     case "list_recent_files":
-      return [];
+      return fx.recentFiles.slice();
     case "get_recovery_state":
       return { paths: [] };
     case "clear_recent_files":
+      fx.recentFiles.length = 0;
+      return undefined;
     case "dismiss_recovery_session":
       return undefined;
 
@@ -95,6 +97,7 @@ function dispatch(
     case "open_file": {
       const path = (args.path as string) ?? fx.doc.path;
       const tabId = fx.openTab(path);
+      fx.pushRecent(path);
       return tabId;
     }
     case "list_tabs":

@@ -2,8 +2,8 @@
  * E2E coverage of US-001 (open file → three-pane layout) and US-002
  * (browse the folder tree, list pane updates).
  *
- * The browser-stubs fixture pre-opens a synthetic document so the welcome
- * screen is bypassed and the three-pane workspace mounts immediately.
+ * The browser-stubs fixture pre-opens a synthetic document so the library
+ * home is bypassed and the three-pane workspace mounts immediately.
  * This is the minimal happy path: confirm the tree shows the seeded
  * folders and clicking one populates the list pane.
  */

@@ -18,6 +18,14 @@ packaging hardening, etc.) continue on the way to v1.0.
 
 ### Added
 
+- **ui:** library home replaces the one-shot welcome splash. Recent
+  files render as a collection of volumes (name, directory, most-recent
+  badge); empty and populated libraries are distinct layouts; crash
+  recovery stays on the home. A title-bar **Library** control returns
+  to the stacks without closing open tabs (`showLibrary` clears the
+  focused tab only). Browser-stub fixture mode seeds three recent
+  files so the populated home can be exercised; the pre-opened fixture
+  tab still mounts the three-pane workspace for existing e2e.
 - Cloud Agent development environment (`.cursor/environment.json` +
   `.cursor/install.sh`) so the workspace builds and tests on Linux.
 - `.nvmrc` pinning the Node.js version referenced by `CONTRIBUTING.md`.
