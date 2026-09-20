@@ -18,7 +18,7 @@ export async function useFixture(page: Page, name: FixtureName = "small") {
       localStorage.setItem("lantern.test.fixture", value);
     } catch {
       // Some browsers throw when localStorage is disabled; ignore so the
-      // suite at least opens the welcome screen.
+      // suite at least opens the library home.
     }
   }, name);
 }

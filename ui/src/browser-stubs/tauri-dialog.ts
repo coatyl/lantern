@@ -2,7 +2,7 @@
  * Browser stub for @tauri-apps/plugin-dialog.
  *
  * The file-open dialog cannot be shown in a plain browser; returns null so
- * the welcome screen "Open file…" button silently does nothing.
+ * the library home "Open file…" button silently does nothing.
  */
 
 export interface OpenDialogOptions {

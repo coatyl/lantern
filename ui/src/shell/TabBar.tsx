@@ -144,7 +144,7 @@ export default function TabBar() {
       className="h-9 flex items-end px-2 gap-0.5 bg-surface-0
                  border-b border-neutral-800 shrink-0 overflow-x-auto"
     >
-      {tabs.map((tab) => {
+      {tabs.map((tab, idx) => {
         const active = tab.id === activeTab;
         // audit P2 #21: inactive tab text neutral-500 (~3.7:1) →
         // neutral-400 (~5.5:1) so non-active tabs clear AA on surface-0.
@@ -168,7 +168,7 @@ export default function TabBar() {
               id={tabControlId(tab.id)}
               aria-selected={active}
               aria-controls={tabPanelId(tab.id)}
-              tabIndex={active ? 0 : -1}
+              tabIndex={active || (activeTab === null && idx === 0) ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               onAuxClick={(e) => {
                 if (e.button === 1) {

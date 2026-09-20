@@ -53,7 +53,7 @@ export default function StatusBar() {
           )}
         </span>
       ) : (
-        <span />
+        <span className="text-[11px] text-neutral-400">{t("library.title")}</span>
       )}
 
       {/* Right: OFFLINE badge. Audit P2 #21: badge text neutral-600 (~3:1) →
