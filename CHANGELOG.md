@@ -28,15 +28,10 @@ packaging hardening, etc.) continue on the way to v1.0.
 - **ci:** the `changes` job no longer calls the Pulls API (which 403s
   under this account's restricted `GITHUB_TOKEN` — contents/metadata/
   packages only). Path filtering is now a `git diff`, and the workflow
-  declares `permissions: contents: read, pull-requests: read` so the
-  same "Resource not accessible by integration" failure cannot come
-  back. This is the same default that breaks `dorny/paths-filter` (and
-  any other Pulls-API action) on every repo under the account.
-- **ci:** `reproducible-build-check` no longer builds from two sibling
-  directories (`build-a` vs `build-b`); rustc/MSVC embed those absolute
-  paths, so the hashes could never match. It now rebuilds twice from
-  the same tree with `--remap-path-prefix` and MSVC `/Brepro`.
-
+  declares `permissions: contents: read, pull-requests: read`.
+- **ci:** `reproducible-build-check` rebuilds twice from the same tree
+  with `--remap-path-prefix` and MSVC `/Brepro`, instead of two sibling
+  checkouts whose absolute paths made the hashes impossible to match.
 - **ui:** the three-pane workspace now hydrates already-open documents on
   startup instead of only after an explicit open action; the welcome
   screen still shows when no document is open.
