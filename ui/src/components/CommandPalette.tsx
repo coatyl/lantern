@@ -46,25 +46,20 @@ export function CommandPalette({
     () => filterCommands(commands, query),
     [commands, query],
   );
-
-  useEffect(() => {
-    setActiveIndex((idx) => {
-      if (filtered.length === 0) return 0;
-      return Math.min(idx, filtered.length - 1);
-    });
-  }, [filtered]);
+  const clampedIndex =
+    filtered.length === 0 ? 0 : Math.min(activeIndex, filtered.length - 1);
 
   useEffect(() => {
     if (!open) return;
-    const active = filtered[activeIndex];
-    if (!active) return;
-    const el = document.getElementById(optionId(active.id));
-    el?.scrollIntoView({ block: "nearest" });
-  }, [open, activeIndex, filtered]);
+    const row = filtered[clampedIndex];
+    if (!row) return;
+    const el = document.getElementById(optionId(row.id));
+    el?.scrollIntoView?.({ block: "nearest" });
+  }, [open, clampedIndex, filtered]);
 
   if (!open) return null;
 
-  const active = filtered[activeIndex] ?? null;
+  const active = filtered[clampedIndex] ?? null;
 
   const runActive = () => {
     if (!active || !active.enabled) return;
@@ -79,12 +74,12 @@ export function CommandPalette({
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((idx) => stepActiveIndex(idx, 1, filtered.length));
+      setActiveIndex(stepActiveIndex(clampedIndex, 1, filtered.length));
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((idx) => stepActiveIndex(idx, -1, filtered.length));
+      setActiveIndex(stepActiveIndex(clampedIndex, -1, filtered.length));
       return;
     }
     if (event.key === "Home") {
@@ -153,7 +148,7 @@ export function CommandPalette({
             </li>
           ) : (
             filtered.map((cmd, idx) => {
-              const isActive = idx === activeIndex;
+              const isActive = idx === clampedIndex;
               return (
                 <li
                   key={cmd.id}
