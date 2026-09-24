@@ -2,9 +2,7 @@
 import type { SkipReasonView } from "./SkipReasonView";
 
 /**
- * JSON-stable mirror of [`lantern_net::LinkStatus`].
- *
- * We keep our own type rather than re-exporting the lantern-net one because
- * `ts_rs` cannot derive bindings for a type that lives in another crate.
+ * Mirror of [`lantern_net::LinkStatus`], tagged by `kind`.  A local type
+ * because `ts-rs` cannot derive bindings for another crate's types.
  */
 export type LinkStatusView = { "kind": "ok", code: number, } | { "kind": "redirect", code: number, } | { "kind": "client_error", code: number, } | { "kind": "server_error", code: number, } | { "kind": "timeout" } | { "kind": "network_error", detail: string, } | { "kind": "skipped", reason: SkipReasonView, };

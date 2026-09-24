@@ -3,6 +3,6 @@ import type { BookmarkSnapshotView } from "./BookmarkSnapshotView";
 import type { ModifiedBookmarkView } from "./ModifiedBookmarkView";
 
 /**
- * Three-way diff between two open tabs: the result of `compare_tabs`.
+ * Result of `compare_tabs`.
  */
 export type DocDiffReport = { left_title: string, right_title: string, added: Array<BookmarkSnapshotView>, removed: Array<BookmarkSnapshotView>, modified: Array<ModifiedBookmarkView>, };

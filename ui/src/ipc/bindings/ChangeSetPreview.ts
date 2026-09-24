@@ -2,6 +2,6 @@
 import type { ChangeEntry } from "./ChangeEntry";
 
 /**
- * Return value of `run_pass`: what the UI shows in the preview panel.
+ * Return value of `run_pass`.
  */
 export type ChangeSetPreview = { changeset_id: number, rule_set_name: string, changes: Array<ChangeEntry>, };

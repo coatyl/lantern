@@ -2,6 +2,6 @@
 import type { TreeNode } from "./TreeNode";
 
 /**
- * Recursive folder tree for the left pane.
+ * Full folder tree of a document (merge picker).
  */
 export type TreeView = { root: TreeNode, };
