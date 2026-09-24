@@ -25,6 +25,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: scripts
+      - name: Test the naming rule
+        run: node --test scripts/branch-name.test.mjs
       - name: Check the pull request's branch name
         env:
           HEAD_REF: ${{ github.head_ref }}
