@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in Lantern does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems (data leaving the machine, files written without being asked, remote code) are reported privately; see SECURITY.md. Do not attach bookmark files that contain anything private.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a Chrome Bookmarks file with …
+        2. Run "Aggressive scrub" on …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lantern version
+      description: Settings → About, or `lantern-cli --version`.
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: flavour
+    attributes:
+      label: Build
+      options:
+        - Portable
+        - Offline
+        - Installer (NSIS / MSI)
+        - Built from source
+        - lantern-cli
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 23H2
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where the bookmark file came from
+      multiple: true
+      options:
+        - Chrome / Edge / Brave HTML export
+        - Chrome / Chromium Bookmarks JSON
+        - Firefox HTML export
+        - Safari HTML export
+        - Other / not relevant

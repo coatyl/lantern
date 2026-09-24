@@ -16,6 +16,22 @@ permissions:
   pull-requests: read
 
 jobs:
+  # Pull requests must come from a branch named per CONTRIBUTING.md →
+  # Branches.  Linux, no dependencies: costs seconds.
+  branch-name:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - name: Test the naming rule
+        run: node --test scripts/branch-name.test.mjs
+      - name: Check the pull request's branch name
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: node scripts/branch-name.mjs "$HEAD_REF"
+
   rust-fmt-clippy:
     runs-on: windows-latest
     steps:
