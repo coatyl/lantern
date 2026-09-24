@@ -91,7 +91,7 @@ Fuzz targets for the parser and URL treatments live in `crates/lantern-core/fuzz
 
 ### Change the UI
 
-Colours are theme-aware CSS variables defined in `ui/src/index.css` and mapped in `ui/tailwind.config.js`. Use those tokens rather than raw colours. User-facing strings go in `ui/src/i18n/en.ts` (see `ui/src/locales/README.md` for adding a locale). The app must stay usable from the keyboard alone.
+Colours are theme-aware CSS variables defined in `ui/src/index.css` and mapped in `ui/tailwind.config.js`. Use those tokens rather than raw colours. User-facing strings go in `ui/src/i18n/en.ts` (see `ui/src/i18n/README.md` for adding a locale). The app must stay usable from the keyboard alone.
 
 ## Commits and pull requests
 
