@@ -108,7 +108,7 @@ down are internal milestones: none of them were tagged or published.
 An early, pre-1.0 milestone.  Ten months of development across nine
 milestones (v0.0.1 through v0.0.11) converge here.  Every PRD
 requirement either meets its NFR target or has a documented operational
-caveat (`private/docs/17-known-limitations-v0.1.md`).  357 Rust + 70 Vitest +
+caveat (in the maintainers' known-limitations notes).  357 Rust + 70 Vitest +
 8 Playwright E2E specs, all green.  Code-signing scaffolding ships
 unsigned pending certificate procurement; NVDA test plan ships ready
 for first execution.
@@ -183,15 +183,15 @@ for first execution.
   "Contributing" sections.  101 lines.
 
 **Release process docs**
-- `private/docs/15-public-repo-flip-checklist.md`: maintainer's
+- Public-repo flip checklist (internal): maintainer's
   pre-flip checklist (secrets review, placeholder resolution, CI on
   cold clone, NVDA + cert prerequisites, version-tag creation,
   release-artefact attachment, repo settings).
-- `private/docs/16-nvda-test-plan.md`, 10-test manual screen-reader
+- NVDA test plan (internal), 10-test manual screen-reader
   test plan for NVDA-on-Windows: startup, file open, tablist,
   tree, list, modal open/close, form, toast, empty states.  Findings
-  template references `private/audits/A11Y_NVDA_v0.1.0.md`.
-- `private/docs/17-known-limitations-v0.1.md` (new): what's
+  template references an internal NVDA audit record.
+- Known-limitations notes for v0.1 (internal, new): what's
   intentionally out of 0.1.0 and where it lives on the roadmap.
 
 ### Fixed
@@ -226,8 +226,8 @@ for first execution.
   now invokes `signtool sign` as a post-build step against each
   produced artefact (`lantern.exe`, NSIS `.exe`, MSI `.msi`).
   `LANTERN_SIGNED=1` is still threaded into the cargo build so
-  `build.rs` can flip the `BuildInfo.signed` flag.  Runbook
-  (`14-signing-runbook.md`) and CI workflow updated to match.
+  `build.rs` can flip the `BuildInfo.signed` flag.  Internal signing
+  runbook and CI workflow updated to match.
 - **MSIX target deferred to a future release.**  v0.0.10 listed `msix`
   in `bundle.targets`; in practice MSIX packaging needs publisher-
   identity certificate work and Tauri 2's MSIX bundler integration
@@ -250,10 +250,10 @@ for first execution.
   CI `sign-windows-installed` job activates the moment
   `LANTERN_CODESIGN_PFX_BASE64` lands in repo secrets.  Until then,
   `BuildInfo.signed` reports `false` and About shows `unsigned`.
-  See `private/docs/14-signing-runbook.md`.
-- **NVDA manual session not yet conducted.**  Test plan in
-  `16-nvda-test-plan.md` is ready for first execution.  Findings
-  will land in `private/audits/A11Y_NVDA_v0.1.0.md` and any P0
+  The maintainers' internal signing runbook covers enabling it.
+- **NVDA manual session not yet conducted.**  The internal NVDA
+  test plan is ready for first execution.  Findings
+  will land in an internal audit record and any P0
   outcomes block a follow-up patch release.
 - **ARM64 build target** still pending GitHub-hosted ARM Windows
   runners reaching GA.  The build configs handle x86_64 only.
@@ -293,9 +293,8 @@ UI (Playwright):    8 specs across 5 files       (non-blocking)
 - All version files at `0.1.0` (`Cargo.toml`, `package.json`,
   `ui/package.json`, `tauri.conf.json`).
 - `Cargo.lock` regenerated.
-- `private/docs/STATUS.md`, `private/docs/08-version-roadmap.md`,
-  `private/docs/04-engineering-process.md` updated with the v0.1.0
-  entry.
+- Internal status, version-roadmap and engineering-process notes
+  updated with the v0.1.0 entry.
 
 ---
 
@@ -448,7 +447,7 @@ The `installed` Tauri config switches from MSI placeholder to true MSIX.
   documents `Get-AuthenticodeSignature` for downloaded binaries and
   flags the v0.0.10 caveat (signed pipeline in place, ships unsigned
   until a cert is acquired).
-- `private/docs/14-signing-runbook.md`, internal runbook for
+- Internal signing runbook for
   maintainers: how to enable signed CI builds (drop a base64 PFX
   + password into repo secrets), how to sign locally for ad-hoc
   testing, troubleshooting (signtool not on PATH, thumbprint
@@ -464,8 +463,8 @@ The `installed` Tauri config switches from MSI placeholder to true MSIX.
 ### Deferred (still cert-gated)
 
 - **The certificate itself.**  Scaffolding is in place; releases
-  ship unsigned until a cert is in repo secrets.  Track in
-  `private/docs/STATUS.md` "Next thing to do".
+  ship unsigned until a cert is in repo secrets.  Tracked in the
+  maintainers' internal status notes.
 - **ARM64 build target**: still pending GitHub-hosted ARM Windows
   runners reaching GA.
 
@@ -629,7 +628,7 @@ search-index baseline gating NFR-P-4, and the final A11Y polish round.
   controls `w-10` → `w-12` (40 → 48 px); Settings gear `w-8` → `w-10`;
   modal close buttons given explicit `w-8 h-8` hit areas; TabBar close
   button `min-w-[24px]` → `min-w-[32px]`.
-- `private/audits/A11Y_AUDIT_v0.0.6.md` Status table now reads
+- The internal v0.0.6 accessibility audit's Status table now reads
   `✅ All closed in v0.0.8` for the P2 row; per-item entries kept
   verbatim for archival reference.
 
@@ -641,13 +640,13 @@ search-index baseline gating NFR-P-4, and the final A11Y polish round.
 
 ### Process / docs
 
-- `03-technical-design.md` §12 updated: moves "v0.0.6 planned" into
+- Internal technical design §12 updated: moves "v0.0.6 planned" into
   "v0.0.7 current" (offline-only build flavor shipped in v0.0.6;
   reproducible-build CI now slated for v0.0.9).
-- `04-engineering-process.md` header refreshed to v0.0.8.
-- `08-version-roadmap.md`: v0.0.7 entry moved to "Shipped releases";
+- Internal engineering-process doc header refreshed to v0.0.8.
+- Internal version roadmap: v0.0.7 entry moved to "Shipped releases";
   v0.0.8 milestone slot opened, then closed.
-- `13-strategy.md` Q1 row marks v0.0.6 + v0.0.7 shipped and D-1
+- Internal strategy doc's Q1 row marks v0.0.6 + v0.0.7 shipped and D-1
   resolved.
 - ADR-0009 status line updated to "Implemented in v0.0.7".
 
@@ -840,8 +839,8 @@ out of the dead-link checker.  The **D-1** decision (cross-document-merge
   runtime, so checking it would fail unconditionally.
 
 **Decisions**
-- ADR-0009 (`private/adrs/ADR-0009-cross-document-merge-nodeid-scope.md`)
-  ratifies the provisional D-1 resolution: a merged document is a fresh
+- ADR-0009 (internal decision record on cross-document merge and `NodeId`
+  scope) ratifies the provisional D-1 resolution: a merged document is a fresh
   `Document` with its own `NodeId` allocator; subtrees from the source
   documents are deep-cloned with reassigned ids; the merged document has
   empty undo/redo stacks and source documents stay read-only.  Concretely
@@ -850,7 +849,7 @@ out of the dead-link checker.  The **D-1** decision (cross-document-merge
   `model::merge` module and a single `merge_documents` IPC command.
 
 **Process / docs**
-- `private/audits/A11Y_AUDIT_v0.0.6.md`: 25 prioritised findings (P0/P1/P2)
+- Internal v0.0.6 accessibility audit: 25 prioritised findings (P0/P1/P2)
   covering focus management, keyboard nav, ARIA semantics, touch targets,
   and color contrast.  P0 items shipped in this release; P1/P2 carry into
   v0.0.7.
@@ -1142,7 +1141,7 @@ property and fuzz tests so later refactors can move fast without regressions.
 - **Rule-set editor UI**: backend ready, UI deferred.
 - **Settings modal UI**: backend ready, UI deferred.
 
-See [`docs/v0.0.3-roadmap.md`](docs/v0.0.3-roadmap.md) for the full plan.
+The full plan was kept in an internal v0.0.3 roadmap.
 
 ### Privacy
 
