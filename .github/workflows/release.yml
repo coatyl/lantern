@@ -2,11 +2,14 @@ name: Release
 
 # Publishes a GitHub Release for one version of Lantern.
 #
-# Two ways in:
+# Three ways in:
 #   * push a `vX.Y.Z` tag: the release is built from the tagged commit;
-#   * run the workflow by hand on `main`: the tag `v<version>` is taken
-#     from Cargo.toml and created by the publish step, pointing at the
-#     commit the run was started from.
+#   * run the workflow by hand on `main` with no input: the tag
+#     `v<version>` is taken from Cargo.toml and created by the publish
+#     step, pointing at the commit the run was started from;
+#   * run it by hand with `tag` set to an existing tag: builds and
+#     publishes that tag (e.g. when the tag push happened while Actions
+#     could not run).
 #
 # Either way the tag must equal `v` + the version in every version file
 # (Cargo.toml, package.json, ui/package.json, tauri.conf.json), and
@@ -22,6 +25,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v0.1.0. Leave empty to tag main at its current version.
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -39,13 +47,18 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      existing: ${{ steps.version.outputs.existing }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - id: version
         name: Resolve version and check every version file agrees
         shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           cargo_v=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)
@@ -60,11 +73,14 @@ jobs:
             fi
           done
           tag="v${cargo_v}"
-          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
-            if [ "${GITHUB_REF_NAME}" != "$tag" ]; then
-              echo "::error::tag ${GITHUB_REF_NAME} does not match version files (${tag})"
+          existing=false
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] || [ -n "${INPUT_TAG:-}" ]; then
+            requested="${INPUT_TAG:-$GITHUB_REF_NAME}"
+            if [ "$requested" != "$tag" ]; then
+              echo "::error::tag ${requested} does not match version files (${tag})"
               exit 1
             fi
+            existing=true
           else
             if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
               echo "::error::manual releases run from main only (got ${GITHUB_REF})"
@@ -77,6 +93,7 @@ jobs:
           fi
           echo "version=${cargo_v}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "existing=${existing}" >> "$GITHUB_OUTPUT"
       - name: Extract release notes from CHANGELOG.md
         shell: bash
         env:
@@ -118,6 +135,8 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -182,6 +201,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.prepare.outputs.tag }}
+      EXISTING: ${{ needs.prepare.outputs.existing }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -201,7 +221,7 @@ jobs:
         run: |
           set -euo pipefail
           args=(--repo "${GITHUB_REPOSITORY}" --title "Lantern ${TAG}" --notes-file notes.md --latest)
-          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+          if [ "${EXISTING}" = "true" ]; then
             args+=(--verify-tag)
           else
             args+=(--target "${GITHUB_SHA}")
