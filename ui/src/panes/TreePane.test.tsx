@@ -1,19 +1,10 @@
 /**
- * TreePane: progressive-expansion tests (v0.0.8 perf hardening, slice 2).
- *
- * The interesting question for these tests is: does the lazy tree actually
- * keep the DOM small for deep documents, and does expanding a row trigger
- * exactly one IPC fetch (with subsequent expand/collapse staying purely
- * local)?  We mount with a synthetic "5 × 5 × 5 = 125 folder" document
- * and assert:
- *
- *   1. only the 5 top-level rows are in the DOM after mount,
- *   2. clicking a row's expand chevron fetches its children once and
- *      renders them, and a subsequent collapse does not refetch.
+ * TreePane: lazy loading (only fetched when expanded, fetched once) and the
+ * ARIA tree keyboard model, against a synthetic 5 × 5 × 5 folder document.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "../i18n/I18nProvider";
 import type { TreeNodeLazy } from "../ipc/types";
@@ -117,131 +108,99 @@ function renderTree() {
   );
 }
 
-describe("TreePane progressive expansion", () => {
-  it("renders only top-level folders on mount even when the tab is huge", async () => {
-    const { topLevel, childrenOf } = makeFiveByFive();
-    mockGetTreeRoot.mockResolvedValueOnce(topLevel);
-    mockGetTreeChildren.mockImplementation((_tab, parentId) =>
-      Promise.resolve(childrenOf(parentId)),
-    );
+const item = (name: string) => screen.getByRole("treeitem", { name: new RegExp(`^${name}$`) });
 
-    const { container } = renderTree();
+async function mountFiveByFive() {
+  const { topLevel, childrenOf } = makeFiveByFive();
+  mockGetTreeRoot.mockResolvedValueOnce(topLevel);
+  mockGetTreeChildren.mockImplementation((_tab, parentId) => Promise.resolve(childrenOf(parentId)));
+  const view = renderTree();
+  await screen.findByRole("treeitem", { name: "Top 5" });
+  return view;
+}
 
-    // Wait for the async mount to settle.  After settling, only the 5
-    // top-level rows should be in the DOM (the loading spinner is gone).
-    await waitFor(() => {
-      expect(container.textContent).toContain("Top 1");
-      expect(container.textContent).toContain("Top 5");
-    });
-
-    // The 25 children should NOT be in the DOM; none of them have been
-    // fetched, and even if they had, none of the rows are expanded.
-    expect(container.textContent).not.toContain("Child 1.1");
-    expect(container.textContent).not.toContain("Child 5.5");
-    expect(container.textContent).not.toContain("Grand");
-
-    // And we should have done exactly one IPC call: getTreeRoot.  No
-    // children were ever fetched.
+describe("TreePane lazy loading", () => {
+  it("mounts with only the top level and one IPC call", async () => {
+    await mountFiveByFive();
+    expect(screen.getByRole("tree", { name: "Folders" })).toBeInTheDocument();
+    // Root + 5 top-level folders; nothing below is fetched or rendered.
+    expect(screen.getAllByRole("treeitem")).toHaveLength(6);
     expect(mockGetTreeRoot).toHaveBeenCalledTimes(1);
     expect(mockGetTreeChildren).not.toHaveBeenCalled();
   });
 
-  it("expanding a folder fetches and renders its children exactly once", async () => {
-    const { topLevel, childrenOf } = makeFiveByFive();
-    mockGetTreeRoot.mockResolvedValueOnce(topLevel);
-    mockGetTreeChildren.mockImplementation((_tab, parentId) =>
-      Promise.resolve(childrenOf(parentId)),
-    );
-
-    const { container } = renderTree();
-
-    await waitFor(() => {
-      expect(container.textContent).toContain("Top 2");
-    });
-
-    // Find the expand button for "Top 2".  The chevron button has
-    // aria-label="Expand" before being toggled.  We pick the button
-    // adjacent to "Top 2".
-    const top2Folder = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Top 2"),
-    );
-    expect(top2Folder).toBeDefined();
-    // The expand chevron is the previous sibling button.
-    const expandBtn = top2Folder!.previousElementSibling as HTMLButtonElement;
-    expect(expandBtn).not.toBeNull();
-    expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
+  it("expanding fetches children once; collapse and re-expand stay local", async () => {
+    await mountFiveByFive();
+    const top2 = item("Top 2");
+    expect(top2).toHaveAttribute("aria-expanded", "false");
+    const chevron = top2.querySelector("[aria-hidden]") as HTMLElement;
 
     await act(async () => {
-      fireEvent.click(expandBtn);
+      fireEvent.click(chevron);
     });
-
-    // Children of Top 2 (ids 21..25) should now appear.
-    await waitFor(() => {
-      expect(container.textContent).toContain("Child 2.1");
-      expect(container.textContent).toContain("Child 2.5");
-    });
-
-    // Children of *other* top-level folders should still be absent.
-    expect(container.textContent).not.toContain("Child 1.1");
-    expect(container.textContent).not.toContain("Child 3.1");
-
-    // Exactly one getTreeChildren call (for Top 2 only).
-    expect(mockGetTreeChildren).toHaveBeenCalledTimes(1);
+    await screen.findByRole("treeitem", { name: "Child 2.5" });
+    expect(item("Top 2")).toHaveAttribute("aria-expanded", "true");
+    expect(item("Child 2.1")).toHaveAttribute("aria-level", "3");
+    expect(screen.queryByRole("treeitem", { name: "Child 1.1" })).not.toBeInTheDocument();
     expect(mockGetTreeChildren).toHaveBeenCalledWith(1, 2);
 
-    // Collapse → no extra fetch.
     await act(async () => {
-      fireEvent.click(expandBtn);
+      fireEvent.click(chevron);
     });
-    expect(mockGetTreeChildren).toHaveBeenCalledTimes(1);
-
-    // Re-expand → still no extra fetch (cached).
     await act(async () => {
-      fireEvent.click(expandBtn);
+      fireEvent.click(chevron);
     });
     expect(mockGetTreeChildren).toHaveBeenCalledTimes(1);
   });
+
+  it("clicking a folder shows it in the list with its full path", async () => {
+    await mountFiveByFive();
+    const user = userEvent.setup();
+    await user.click(item("Top 2").querySelector("[aria-hidden]") as HTMLElement);
+    await user.click(await screen.findByRole("treeitem", { name: "Child 2.3" }));
+    expect(storeState.jumpToFolder).toHaveBeenLastCalledWith([
+      { id: 2, name: "Top 2" },
+      { id: 23, name: "Child 2.3" },
+    ]);
+  });
 });
 
-describe("TreePane inline rename (v0.0.11)", () => {
-  it("F2 on a focused folder swaps the label for an input pre-filled with the name; Enter calls renameNode", async () => {
-    const { topLevel, childrenOf } = makeFiveByFive();
-    mockGetTreeRoot.mockResolvedValueOnce(topLevel);
-    mockGetTreeChildren.mockImplementation((_tab, parentId) =>
-      Promise.resolve(childrenOf(parentId)),
-    );
-    mockRenameNode.mockResolvedValue(undefined);
-
+describe("TreePane keyboard", () => {
+  it("is a single tab stop and supports arrows, Home/End and Enter", async () => {
+    await mountFiveByFive();
     const user = userEvent.setup();
-    const { container } = renderTree();
+    const focusable = screen.getAllByRole("treeitem").filter((el) => el.tabIndex === 0);
+    expect(focusable).toHaveLength(1);
 
-    await waitFor(() => {
-      expect(container.textContent).toContain("Top 3");
-    });
+    item("All bookmarks").focus();
+    await user.keyboard("{ArrowDown}");
+    expect(item("Top 1")).toHaveFocus();
+    await user.keyboard("{ArrowRight}"); // expand
+    await screen.findByRole("treeitem", { name: "Child 1.1" });
+    await user.keyboard("{ArrowRight}"); // into first child
+    expect(item("Child 1.1")).toHaveFocus();
+    await user.keyboard("{ArrowLeft}"); // back to parent
+    expect(item("Top 1")).toHaveFocus();
+    await user.keyboard("{ArrowLeft}"); // collapse
+    expect(item("Top 1")).toHaveAttribute("aria-expanded", "false");
+    await user.keyboard("{End}");
+    expect(item("Top 5")).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(storeState.jumpToFolder).toHaveBeenLastCalledWith([{ id: 5, name: "Top 5" }]);
+    await user.keyboard("{Home}");
+    expect(item("All bookmarks")).toHaveFocus();
+  });
 
-    // The folder label is the second button per row (the chevron is first).
-    const top3Btn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Top 3"),
-    ) as HTMLButtonElement | undefined;
-    expect(top3Btn).toBeDefined();
-
-    // Focus the folder label and press F2.
-    top3Btn!.focus();
+  it("F2 renames the focused folder; Enter commits", async () => {
+    await mountFiveByFive();
+    mockRenameNode.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    item("Top 3").focus();
     await user.keyboard("{F2}");
-
-    // The label is replaced by an input pre-filled with the folder name.
-    const input = await waitFor(() =>
-      container.querySelector<HTMLInputElement>("input[data-rename-input]"),
-    );
-    expect(input).not.toBeNull();
-    expect(input!.value).toBe("Top 3");
-
-    // Type a new name and press Enter.
-    await user.clear(input!);
-    await user.type(input!, "Renamed Folder{Enter}");
-
-    await waitFor(() => {
-      expect(mockRenameNode).toHaveBeenCalledWith(1, 3, "Renamed Folder");
-    });
+    const input = screen.getByRole("textbox", { name: "New name…" }) as HTMLInputElement;
+    expect(input.value).toBe("Top 3");
+    await user.clear(input);
+    await user.type(input, "Renamed Folder{Enter}");
+    await waitFor(() => expect(mockRenameNode).toHaveBeenCalledWith(1, 3, "Renamed Folder"));
   });
 });

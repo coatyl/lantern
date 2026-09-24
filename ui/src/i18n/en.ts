@@ -91,6 +91,10 @@ export const en: Translations = {
   "commandPalette.search":       "Focus search",
   "commandPalette.toggleTheme":  "Toggle theme",
 
+  // ── Tree pane ────────────────────────────────────────────────────────────
+  "tree.label":                "Folders",
+  "tree.unnamed":              "(unnamed)",
+
   // ── List pane ────────────────────────────────────────────────────────────
   "list.root":                 "All bookmarks",
   "list.search":               "Search this document",
