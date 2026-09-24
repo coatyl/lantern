@@ -72,7 +72,7 @@ export function EmptyState({
           type="button"
           onClick={action.onClick}
           className="mt-1 px-3 py-1 rounded text-[11px] font-medium
-                     bg-accent text-neutral-950 hover:bg-accent-hover
+                     bg-accent text-on-accent hover:bg-accent-hover
                      transition-colors focus:outline-none
                      focus-visible:ring-2 focus-visible:ring-accent"
         >

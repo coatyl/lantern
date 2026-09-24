@@ -101,7 +101,7 @@ export function CommandPalette({
   return (
     <div
       className="fixed inset-0 z-[60] flex items-start justify-center
-                 bg-black/60 backdrop-blur-sm animate-fade-in pt-[12vh]"
+                 bg-scrim/60 backdrop-blur-sm animate-fade-in pt-[12vh]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

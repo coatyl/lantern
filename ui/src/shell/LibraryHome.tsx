@@ -378,7 +378,7 @@ function OpenFileButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="px-5 py-2 rounded-md bg-accent hover:bg-accent-hover text-neutral-950
+      className="px-5 py-2 rounded-md bg-accent hover:bg-accent-hover text-on-accent
                  font-semibold text-sm transition-colors focus:outline-none
                  focus-visible:ring-2 focus-visible:ring-accent/70 shrink-0"
     >
@@ -428,7 +428,7 @@ function RecoveryBanner({
             type="button"
             onClick={onRestore}
             disabled={restoring}
-            className="px-3 py-1.5 rounded bg-accent text-neutral-950 text-xs font-semibold
+            className="px-3 py-1.5 rounded bg-accent text-on-accent text-xs font-semibold
                        hover:bg-accent-hover transition-colors disabled:opacity-40"
           >
             {restoring ? t("library.recovery.restoring") : t("library.recovery.restore")}

@@ -22,7 +22,7 @@ export function ChangeRow({ change, approved, onToggle }: ChangeRowProps) {
         type="checkbox"
         checked={approved}
         onChange={onToggle}
-        className="mt-0.5 accent-amber-400 shrink-0"
+        className="mt-0.5 shrink-0"
       />
       <div className="flex-1 min-w-0 text-xs">
         <div className="flex items-center gap-1.5 mb-0.5">

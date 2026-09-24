@@ -127,7 +127,7 @@ export function DiffModal({
             onClick={runCompare}
             disabled={!canCompare || loading}
             className="ml-auto px-3 py-1 rounded text-xs font-medium
-                       bg-accent hover:bg-accent-hover text-neutral-950
+                       bg-accent hover:bg-accent-hover text-on-accent
                        disabled:opacity-50 transition-colors
                        focus:outline-none focus-visible:ring-2
                        focus-visible:ring-accent"
@@ -285,7 +285,7 @@ function ModifiedBucket({
   return (
     <section>
       <header className="flex items-baseline gap-2 mb-1">
-        <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded text-amber-400 bg-amber-400/10">
+        <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded text-warn bg-warn/10">
           Modified
         </span>
         <span className="text-xs text-neutral-300 font-medium">{count}</span>

@@ -110,9 +110,9 @@ function categoryLabel(cat: string): string {
 }
 
 function categoryColor(cat: string): string {
-  if (cat.startsWith("url"))   return "text-sky-400 bg-sky-400/10";
-  if (cat === "title")         return "text-amber-400 bg-amber-400/10";
-  if (cat === "folder_name")   return "text-emerald-400 bg-emerald-400/10";
+  if (cat.startsWith("url"))   return "text-info bg-info/10";
+  if (cat === "title")         return "text-warn bg-warn/10";
+  if (cat === "folder_name")   return "text-ok bg-ok/10";
   if (cat === "cross_field")   return "text-violet-400 bg-violet-400/10";
   return "text-neutral-400 bg-neutral-400/10";
 }
@@ -710,7 +710,7 @@ function TreatmentEditor({
                 onClick={onSave}
                 disabled={saving}
                 className="px-3 py-1 rounded text-xs font-medium
-                           bg-accent hover:bg-accent-hover text-neutral-950
+                           bg-accent hover:bg-accent-hover text-on-accent
                            disabled:opacity-50 transition-colors
                            focus:outline-none focus-visible:ring-2
                            focus-visible:ring-accent"
@@ -886,7 +886,7 @@ function InlineNameInput({
         type="submit"
         disabled={!value.trim()}
         className="px-2 py-1 rounded text-xs font-medium
-                   bg-accent disabled:opacity-40 text-neutral-950
+                   bg-accent disabled:opacity-40 text-on-accent
                    focus:outline-none"
       >
         OK
@@ -1316,7 +1316,7 @@ export function RuleSetEditorModal({
               <button
                 onClick={() => handleDelete(confirmDelete)}
                 className="px-3 py-1.5 rounded text-xs font-medium
-                           bg-danger/90 hover:bg-danger text-white
+                           bg-danger/90 hover:bg-danger text-on-danger
                            transition-colors focus:outline-none"
               >
                 Delete

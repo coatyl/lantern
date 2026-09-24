@@ -296,7 +296,7 @@ export function MergePickerModal({
                 onClick={runMerge}
                 disabled={!canMerge}
                 className="px-3 py-1 rounded text-xs font-medium
-                           bg-accent hover:bg-accent-hover text-neutral-950
+                           bg-accent hover:bg-accent-hover text-on-accent
                            disabled:opacity-50 transition-colors
                            focus:outline-none focus-visible:ring-2
                            focus-visible:ring-accent"

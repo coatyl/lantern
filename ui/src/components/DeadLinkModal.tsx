@@ -287,7 +287,7 @@ export function DeadLinkModal({
             onClick={runCheck}
             disabled={loading || tabId === null}
             className="px-3 py-1 rounded text-xs font-medium bg-accent hover:bg-accent-hover
-                       text-neutral-950 disabled:opacity-40 transition-colors
+                       text-on-accent disabled:opacity-40 transition-colors
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {loading ? "Checking..." : "Run check"}
@@ -420,7 +420,7 @@ export function DeadLinkModal({
                     <button
                       onClick={handleBulkDelete}
                       disabled={deleting}
-                      className="px-2 py-0.5 rounded bg-danger text-white
+                      className="px-2 py-0.5 rounded bg-danger text-on-danger
                                  hover:bg-danger/80 transition-colors
                                  disabled:opacity-40 focus:outline-none"
                     >
@@ -449,7 +449,6 @@ export function DeadLinkModal({
                       checked={allVisibleSelected}
                       onChange={toggleSelectAllVisible}
                       disabled={visibleEntries.length === 0}
-                      className="accent-amber-400"
                     />
                     <SortHeader label="Status"   active={sortKey === "status"}   descending={sortDescending} onClick={() => handleSortClick("status")}   />
                     <SortHeader label="Time"     active={sortKey === "elapsed"}  descending={sortDescending} onClick={() => handleSortClick("elapsed")}  />
@@ -475,7 +474,7 @@ export function DeadLinkModal({
                           aria-label={`Select ${entry.title || entry.url}`}
                           checked={selected.has(entry.node_id)}
                           onChange={() => toggleSelected(entry.node_id)}
-                          className="mt-0.5 accent-amber-400"
+                          className="mt-0.5"
                         />
                         <StatusBadge status={entry.status} />
                         <span className="text-[10px] text-neutral-500 tabular-nums">

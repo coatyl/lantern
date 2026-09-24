@@ -170,7 +170,7 @@ export default function DetailPane() {
           onClick={handleRunPass}
           disabled={running || !activeTab}
           className="w-full py-1.5 rounded bg-accent hover:bg-accent-hover
-                     disabled:opacity-40 text-neutral-950 font-medium text-xs
+                     disabled:opacity-40 text-on-accent font-medium text-xs
                      transition-colors focus:outline-none focus-visible:ring-2
                      focus-visible:ring-accent"
         >
@@ -388,7 +388,7 @@ function ItemDetail({
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="flex-1 py-0.5 rounded bg-danger hover:bg-danger/80 text-white
+              className="flex-1 py-0.5 rounded bg-danger hover:bg-danger/80 text-on-danger
                          text-[10px] font-medium transition-colors disabled:opacity-40
                          focus:outline-none"
             >

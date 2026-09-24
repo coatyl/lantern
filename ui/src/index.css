@@ -58,6 +58,37 @@
   /* Scrollbar: track + thumb (overridable per theme) */
   --scrollbar-thumb:       #3a322c;
   --scrollbar-thumb-hover: #53483e;
+
+  /* Neutral ramp (RGB channels), warm.  Contrast vs surface-0 / surface-2:
+       100–300  primary / secondary ink      16.6 → 11.6  (≥10 on s2)
+       400      supporting copy               8.3          (7.2 on s2)
+       500      labels, meta                  5.9          (5.2 on s2, AA)
+       600      hints                         4.5          (3.9 on s2)
+       700      UI borders, faint glyphs      3.1          (WCAG 1.4.11)
+       800–950  dividers and fills            ≤ 1.5
+     See tailwind.config.js for why the scale is themed. */
+  --n-50:  251 248 243;
+  --n-100: 244 237 228;
+  --n-200: 230 221 209;
+  --n-300: 210 199 185;
+  --n-400: 180 168 152;
+  --n-500: 154 141 125;
+  --n-600: 133 120 104;
+  --n-700: 106  95  83;
+  --n-800:  58  50  43;
+  --n-900:  34  29  25;
+  --n-950:  22  19  15;
+
+  /* Hairline divider between chrome regions (softer than --border). */
+  --line: 46 40 34;
+
+  --on-accent: 28 18 4;         /* 7.7:1 on the dark accent */
+  --on-danger: 31 7 7;          /* dark text on red-400 */
+  --scrim:      0  0  0;
+
+  --tone-info: 56 189 248;      /* sky-400 */
+  --tone-warn: 251 191 36;      /* amber-400 */
+  --tone-ok:   52 211 153;      /* emerald-400 */
 }
 
 /* Light theme: paper, not inverted greys.  Accent stays in the amber
@@ -97,6 +128,37 @@
   /* Scrollbar: warm light-mode greys */
   --scrollbar-thumb:       #c4b49a;
   --scrollbar-thumb-hover: #a89880;
+
+  /* Neutral ramp mirrored for paper.  Contrast vs surface-0 / surface-2:
+       100–300 15.3 → 10.3, 400 7.9, 500 6.1, 600 4.9, 700 3.1. */
+  --n-50:   21  16  11;
+  --n-100:  33  26  19;
+  --n-200:  49  39  29;
+  --n-300:  67  55  43;
+  --n-400:  86  72  58;
+  --n-500: 103  88  71;
+  --n-600: 118 102  84;
+  --n-700: 151 135 114;
+  --n-800: 212 199 178;
+  --n-900: 230 220 204;
+  --n-950: 239 231 218;
+
+  --line: 217 205 184;
+
+  --on-accent: 28 18 4;         /* 5.8:1 on the light accent */
+  --on-danger: 255 255 255;     /* white on red-600, 4.5:1 */
+  --scrim:     40 30 20;
+
+  --tone-info:   2 132 199;     /* sky-600 */
+  --tone-warn: 180  83   9;     /* amber-700 */
+  --tone-ok:     4 120  87;     /* emerald-700 */
+}
+
+/* Native checkboxes, radios and range inputs follow the theme accent. */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: rgb(var(--accent));
 }
 
 /* ---------------------------------------------------------------------------

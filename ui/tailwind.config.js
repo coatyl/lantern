@@ -21,7 +21,43 @@ export default {
         ],
         mono: ["JetBrains Mono", "Consolas", "monospace"],
       },
+      // Bare `border` / `divide` utilities pick up the theme's divider
+      // colour instead of Tailwind's default gray-200, which drew bright
+      // white rules under the title, tab and status bars in dark mode.
+      borderColor: {
+        DEFAULT: "rgb(var(--line) / <alpha-value>)",
+      },
+      divideColor: {
+        DEFAULT: "rgb(var(--line) / <alpha-value>)",
+      },
       colors: {
+        // The whole UI was written against Tailwind's neutral scale for the
+        // dark theme.  Rather than rewrite ~500 class names, the scale itself
+        // is theme-aware: each step is a CSS variable that index.css defines
+        // once per theme (dark ramp: 50 = lightest; light ramp mirrored, so
+        // `text-neutral-200` is primary ink in both rooms).  Steps carry
+        // contrast floors against surface-0, documented next to the values.
+        neutral: {
+          50:  "rgb(var(--n-50) / <alpha-value>)",
+          100: "rgb(var(--n-100) / <alpha-value>)",
+          200: "rgb(var(--n-200) / <alpha-value>)",
+          300: "rgb(var(--n-300) / <alpha-value>)",
+          400: "rgb(var(--n-400) / <alpha-value>)",
+          500: "rgb(var(--n-500) / <alpha-value>)",
+          600: "rgb(var(--n-600) / <alpha-value>)",
+          700: "rgb(var(--n-700) / <alpha-value>)",
+          800: "rgb(var(--n-800) / <alpha-value>)",
+          900: "rgb(var(--n-900) / <alpha-value>)",
+          950: "rgb(var(--n-950) / <alpha-value>)",
+        },
+        // Text on filled accent / danger buttons, and the modal backdrop.
+        "on-accent": "rgb(var(--on-accent) / <alpha-value>)",
+        "on-danger": "rgb(var(--on-danger) / <alpha-value>)",
+        scrim: "rgb(var(--scrim) / <alpha-value>)",
+        // Category tones (rule-set treatment chips, log levels, badges).
+        info: "rgb(var(--tone-info) / <alpha-value>)",
+        warn: "rgb(var(--tone-warn) / <alpha-value>)",
+        ok:   "rgb(var(--tone-ok) / <alpha-value>)",
         // Surface colours: defined as CSS vars in index.css.
         // Hex fallbacks are baked into the CSS vars themselves.
         surface: {

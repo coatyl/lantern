@@ -130,7 +130,7 @@ export function PreviewPanel({ preview, tabId, onDone, onCancel }: PreviewPanelP
           onClick={handleApply}
           disabled={applying || approvedCount === 0}
           className="w-full py-1.5 rounded bg-accent hover:bg-accent-hover
-                     disabled:opacity-40 text-neutral-950 font-medium text-xs
+                     disabled:opacity-40 text-on-accent font-medium text-xs
                      transition-colors focus:outline-none focus-visible:ring-2
                      focus-visible:ring-accent"
         >

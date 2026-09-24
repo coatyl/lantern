@@ -140,7 +140,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center
-                 bg-black/60 backdrop-blur-sm animate-fade-in"
+                 bg-scrim/60 backdrop-blur-sm animate-fade-in"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
@@ -259,7 +259,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                 onClick={handleSave}
                 disabled={saving}
                 className="px-4 py-1.5 rounded text-xs font-medium
-                           bg-accent hover:bg-accent-hover text-neutral-950
+                           bg-accent hover:bg-accent-hover text-on-accent
                            disabled:opacity-50 transition-colors
                            focus:outline-none focus-visible:ring-2
                            focus-visible:ring-accent"

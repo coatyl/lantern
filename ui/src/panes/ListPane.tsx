@@ -528,11 +528,11 @@ export default function ListPane() {
           {SEARCH_MODE_LABEL[searchMode]}
         </button>
         <label className="flex items-center gap-0.5 text-[10px] text-neutral-500 cursor-pointer select-none">
-          <input type="checkbox" checked={searchTitles} onChange={(e) => setSearchTitles(e.target.checked)} className="accent-amber-400" />
+          <input type="checkbox" checked={searchTitles} onChange={(e) => setSearchTitles(e.target.checked)} />
           T
         </label>
         <label className="flex items-center gap-0.5 text-[10px] text-neutral-500 cursor-pointer select-none">
-          <input type="checkbox" checked={searchUrls} onChange={(e) => setSearchUrls(e.target.checked)} className="accent-amber-400" />
+          <input type="checkbox" checked={searchUrls} onChange={(e) => setSearchUrls(e.target.checked)} />
           U
         </label>
         {/* Filter drawer toggle */}
