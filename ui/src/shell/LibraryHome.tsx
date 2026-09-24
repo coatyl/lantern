@@ -166,18 +166,25 @@ function EmptyLibrary({
 
   return (
     <>
-      <LanternLogo />
-
-      <div className="text-center max-w-md">
-        <h1 className="text-xl font-semibold text-neutral-200 mb-1 tracking-wide">
-          {t("library.empty.title")}
-        </h1>
-        <p className="text-sm text-neutral-500">
-          {t("library.empty.description")}
-        </p>
+      <div
+        className="w-full max-w-lg flex flex-col items-center gap-5 px-8 py-10 rounded-2xl
+                   border-2 border-dashed border-neutral-800 bg-surface-1/40"
+      >
+        <LanternLogo />
+        <div className="text-center">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-neutral-500 mb-2">
+            {t("library.kicker")}
+          </p>
+          <h1 className="text-xl font-semibold text-neutral-100 mb-1.5">
+            {t("library.empty.title")}
+          </h1>
+          <p className="text-sm text-neutral-400 leading-relaxed">
+            {t("library.empty.description")}
+          </p>
+        </div>
+        <OpenFileButton onClick={onOpen} />
+        <p className="text-xs text-neutral-500">{t("library.empty.drop")}</p>
       </div>
-
-      <OpenFileButton onClick={onOpen} />
 
       {recoveryPaths.length > 0 && (
         <RecoveryBanner
@@ -193,7 +200,7 @@ function EmptyLibrary({
       )}
 
       <p className="text-xs text-neutral-500">{t("library.paletteHint")}</p>
-      <p className="text-[11px] text-neutral-700">{t("library.hint")}</p>
+      <p className="text-[11px] text-neutral-600 max-w-lg text-center">{t("library.hint")}</p>
     </>
   );
 }
@@ -310,6 +317,9 @@ function VolumeCard({
 }) {
   const t = useT();
   const lastOpened = volume.lastOpened;
+  const isOpen = useDocuments((state) =>
+    state.tabs.some((tab) => tab.path?.replace(/\\/g, "/").toLowerCase() === volume.path.replace(/\\/g, "/").toLowerCase()),
+  );
 
   return (
     <button
@@ -330,12 +340,20 @@ function VolumeCard({
             <span className="text-sm font-medium text-neutral-100 truncate">
               {volume.name}
             </span>
-            {mostRecent && (
+            {isOpen ? (
+              <span className="shrink-0 text-[10px] uppercase tracking-wider
+                               text-ok border border-ok/30 rounded px-1.5 py-0.5">
+                {t("library.openInTab")}
+              </span>
+            ) : mostRecent ? (
               <span className="shrink-0 text-[10px] uppercase tracking-wider
                                text-accent/90 border border-accent/25 rounded px-1.5 py-0.5">
                 {t("library.mostRecent")}
               </span>
-            )}
+            ) : null}
+            <span className="ml-auto shrink-0 text-[10px] text-neutral-500">
+              {t(`library.format.${volume.format}`)}
+            </span>
           </span>
           {volume.directory && (
             <span className="mt-0.5 block text-[11px] text-neutral-500 truncate">

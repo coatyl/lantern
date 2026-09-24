@@ -188,6 +188,11 @@ export const en: Translations = {
   "library.region":                    "Library",
   "library.title":                     "Library",
   "library.subtitle":                  "A private collection of bookmark files on this machine.",
+  "library.kicker":                    "Private archive · stays on this machine",
+  "library.empty.drop":                "or drop a bookmarks file anywhere in this window",
+  "library.openInTab":                 "Open",
+  "library.format.html":               "HTML export",
+  "library.format.chrome":             "Chrome JSON",
   "library.empty.title":               "Your library is empty",
   "library.empty.description":         "Open a bookmark file to start a private collection. Files you open stay listed here.",
   "library.open":                      "Open file…",
@@ -207,5 +212,5 @@ export const en: Translations = {
   "library.recovery.partial":          "Restored {restored} files; {failed} could not be reopened.",
   "library.recovery.more":             "+{n} more",
   "library.paletteHint":               "Press Ctrl+K (⌘K) to open the command palette.",
-  "library.hint":                      "Drop a bookmark file anywhere to open it · Ctrl+S saves a clean copy, never the original · Chrome, Firefox, Edge and Safari exports and Chrome Bookmarks JSON",
+  "library.hint":                      "Opens Chrome, Firefox, Edge and Safari exports and Chrome Bookmarks JSON · Ctrl+S saves a clean copy, never the original",
 };

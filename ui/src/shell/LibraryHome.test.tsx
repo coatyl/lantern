@@ -28,15 +28,12 @@ vi.mock("../ipc", () => ({
 }));
 
 vi.mock("../state/documents", () => {
-  const useDocuments = Object.assign(() => store, {
-    getState: () => store,
-  });
+  const useDocuments = Object.assign(
+    (selector?: (s: typeof store) => unknown) => (selector ? selector(store) : store),
+    { getState: () => store },
+  );
   return { useDocuments };
 });
-
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi.fn().mockResolvedValue(null),
-}));
 
 const RECENTS = [
   "C:/lantern/test/fixtures/small.html",
@@ -95,6 +92,7 @@ describe("LibraryHome", () => {
     expect(screen.getByText("C:/Users/fixture/Documents")).toBeInTheDocument();
     expect(screen.getByText("chrome-bookmarks.html")).toBeInTheDocument();
     expect(screen.getByText("Most recent")).toBeInTheDocument();
+    expect(screen.getAllByText("HTML export")).toHaveLength(3);
     expect(
       screen.queryByRole("heading", { name: "Your library is empty" }),
     ).not.toBeInTheDocument();
@@ -115,6 +113,22 @@ describe("LibraryHome", () => {
     expect(onOpen).toHaveBeenCalledWith([
       "C:/Users/fixture/Documents/bookmarks-firefox.html",
     ]);
+  });
+
+  it("marks volumes that are already open in a tab", async () => {
+    store.tabs = [
+      {
+        id: 7,
+        title: "small.html",
+        path: "C:\\lantern\\test\\fixtures\\small.html",
+        dirty: false,
+        stats: { bookmark_count: 1, folder_count: 1, separator_count: 0 },
+      },
+    ];
+    vi.mocked(ipc.listRecentFiles).mockResolvedValue(RECENTS);
+    renderHome();
+    await screen.findByText("small.html");
+    expect(screen.getByText("Open")).toBeInTheDocument();
   });
 
   it("keeps the crash-recovery banner on both empty and populated homes", async () => {
