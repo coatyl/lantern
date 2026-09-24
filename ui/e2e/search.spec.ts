@@ -13,15 +13,24 @@ test.beforeEach(async ({ page }) => {
   await useFixture(page);
 });
 
-test("US-003: substring search filters the bookmark list", async ({ page }) => {
+test("US-003: search filters as you type and Escape returns to the folder", async ({ page }) => {
   await page.goto("/");
 
-  const searchBox = page.getByRole("searchbox");
+  const searchBox = page.getByRole("searchbox", { name: "Search this document" });
   await expect(searchBox).toBeVisible();
 
+  // No Enter needed: results follow the input.
   await searchBox.fill("rust");
-  await searchBox.press("Enter");
-
+  await expect(page.getByText("1 result for “rust”")).toBeVisible();
   await expect(page.getByText("Rust Book")).toBeVisible();
   await expect(page.getByText("Hacker News")).not.toBeVisible();
+
+  // Search options live in the results bar.
+  await page.getByRole("radio", { name: "Regex" }).click();
+  await searchBox.fill("rust(");
+  await expect(page.getByRole("alert")).toContainText("isn’t valid");
+
+  await searchBox.press("Escape");
+  await expect(searchBox).toHaveValue("");
+  await expect(page.getByText(/results? for/)).not.toBeVisible();
 });

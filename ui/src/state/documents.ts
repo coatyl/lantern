@@ -197,6 +197,13 @@ interface DocumentsState {
   setFilter: (filter: FilterSpec | null) => Promise<void>;
 }
 
+/**
+ * Bumped by every search and by `clearSearch`, so a slow response that
+ * arrives after the user typed more (or cleared the box) is dropped instead
+ * of overwriting newer results.
+ */
+let searchSeq = 0;
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -474,6 +481,7 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
   runSearch: async (query, searchTitles, searchUrls, mode = "substring") => {
     const { activeTab, filter } = get();
     if (activeTab === null) return;
+    const seq = ++searchSeq;
     const results = await ipc.search(activeTab, {
       query,
       search_titles: searchTitles,
@@ -481,10 +489,12 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
       mode,
       filter: filter ?? undefined,
     });
+    if (seq !== searchSeq) return;
     set({ isSearchMode: true, searchResults: results, selectedItem: null });
   },
 
   clearSearch: () => {
+    searchSeq += 1;
     set({ isSearchMode: false, searchResults: null, selectedItem: null });
   },
 

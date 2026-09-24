@@ -253,11 +253,20 @@ export function smallFixture(): FixtureState {
       const q = String(query.query ?? "").toLowerCase();
       const titles = Boolean(query.search_titles ?? true);
       const urls = Boolean(query.search_urls ?? true);
+      const mode = String(query.mode ?? "substring");
+      // Mirrors the backend: an invalid pattern is an error, not "no results".
+      const pattern =
+        mode === "regex"
+          ? new RegExp(q, "i")
+          : mode === "glob"
+            ? new RegExp(q.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, "."), "i")
+            : null;
+      const matches = (text: string) => (pattern ? pattern.test(text) : text.toLowerCase().includes(q));
       const items: FolderItem[] = [];
       for (const folder of FOLDERS) {
         for (const b of folder.bookmarks) {
-          const matchTitle = titles && b.title.toLowerCase().includes(q);
-          const matchUrl = urls && b.url.toLowerCase().includes(q);
+          const matchTitle = titles && matches(b.title);
+          const matchUrl = urls && matches(b.url);
           if (q.length > 0 && (matchTitle || matchUrl)) {
             items.push(bookmarkItem(b));
           }
