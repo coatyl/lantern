@@ -5,8 +5,10 @@ edition.workspace      = true
 rust-version.workspace = true
 description = "Command-line companion to the Lantern Tauri app: sanitise, inspect, and convert bookmark files from the shell."
 
+# Not `lantern`: that name belongs to the GUI (lantern-app), and two binaries
+# with the same name overwrite each other in the shared target directory.
 [[bin]]
-name = "lantern"
+name = "lantern-cli"
 path = "src/main.rs"
 
 [dependencies]

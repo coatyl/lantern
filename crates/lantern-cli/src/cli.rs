@@ -1,4 +1,4 @@
-//! Command-tree definitions and dispatch for the `lantern` binary.
+//! Command-tree definitions and dispatch for the `lantern-cli` binary.
 //!
 //! The CLI is intentionally minimal for v0.1.0: four subcommands that
 //! cover the headless path the GUI exercises (parse → convert / run
@@ -28,10 +28,10 @@ use lantern_io::{build_ruleset, read_bookmark_file, read_ruleset, write_bookmark
 // Command tree
 // ---------------------------------------------------------------------------
 
-/// Top-level CLI for the `lantern` binary.
+/// Top-level CLI for the `lantern-cli` binary.
 #[derive(Debug, Parser)]
 #[command(
-    name = "lantern",
+    name = "lantern-cli",
     version,
     about = "Sanitise, inspect, and convert bookmark files from the shell.",
     long_about = "Lantern's headless companion to the Tauri GUI.  \

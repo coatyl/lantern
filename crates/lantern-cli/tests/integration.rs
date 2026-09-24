@@ -1,4 +1,4 @@
-//! End-to-end coverage of the `lantern` binary via `assert_cmd`.
+//! End-to-end coverage of the `lantern-cli` binary via `assert_cmd`.
 //!
 //! These tests spawn the real binary so they exercise clap parsing,
 //! the full lantern-core / lantern-io integration, and stdout output
@@ -31,23 +31,26 @@ fn duplicates_fixture_path() -> PathBuf {
         .join("duplicates.html")
 }
 
-fn lantern() -> Command {
-    Command::cargo_bin("lantern").expect("lantern binary builds in this crate")
+fn lantern_cli() -> Command {
+    Command::cargo_bin("lantern-cli").expect("lantern-cli binary builds in this crate")
 }
 
 #[test]
-fn version_reports_workspace_version() {
-    lantern()
+fn version_reports_binary_name_and_workspace_version() {
+    lantern_cli()
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
+        .stdout(predicate::str::starts_with(concat!(
+            "lantern-cli ",
+            env!("CARGO_PKG_VERSION")
+        )));
 }
 
 #[test]
 fn info_reports_nonzero_counts_for_fixture() {
     let fixture = fixture_path();
-    let assert = lantern().arg("info").arg(&fixture).assert().success();
+    let assert = lantern_cli().arg("info").arg(&fixture).assert().success();
 
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     assert!(output.contains("bookmarks:"), "stdout was: {output}");
@@ -72,7 +75,7 @@ fn sanitize_dry_run_prints_summary_without_writing_output() {
     let tmp = tempfile::tempdir().unwrap();
     let phantom_output = tmp.path().join("must-not-exist.html");
 
-    lantern()
+    lantern_cli()
         .arg("sanitize")
         .arg(&fixture)
         .arg("-o")
@@ -97,7 +100,7 @@ fn sanitize_writes_valid_bookmark_file() {
     let tmp = tempfile::tempdir().unwrap();
     let output = tmp.path().join("clean.html");
 
-    lantern()
+    lantern_cli()
         .arg("sanitize")
         .arg(&fixture)
         .arg("-o")
@@ -125,7 +128,7 @@ fn sanitize_writes_valid_bookmark_file() {
 #[test]
 fn info_accepts_chrome_bookmarks_json() {
     let fixture = chrome_json_fixture();
-    let assert = lantern().arg("info").arg(&fixture).assert().success();
+    let assert = lantern_cli().arg("info").arg(&fixture).assert().success();
 
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     assert_eq!(parse_count(&output, "bookmarks:"), 3);
@@ -139,7 +142,7 @@ fn convert_chrome_json_emits_netscape_html() {
     let tmp = tempfile::tempdir().unwrap();
     let output = tmp.path().join("bookmarks.html");
 
-    lantern()
+    lantern_cli()
         .arg("convert")
         .arg(&fixture)
         .arg("-o")
@@ -170,7 +173,7 @@ fn convert_then_sanitize_strips_utm() {
     let converted = tmp.path().join("converted.html");
     let cleaned = tmp.path().join("cleaned.html");
 
-    lantern()
+    lantern_cli()
         .arg("convert")
         .arg(&fixture)
         .arg("-o")
@@ -178,7 +181,7 @@ fn convert_then_sanitize_strips_utm() {
         .assert()
         .success();
 
-    lantern()
+    lantern_cli()
         .arg("sanitize")
         .arg(&converted)
         .arg("-o")
@@ -205,7 +208,7 @@ fn convert_html_round_trips() {
     let tmp = tempfile::tempdir().unwrap();
     let output = tmp.path().join("copy.html");
 
-    lantern()
+    lantern_cli()
         .arg("convert")
         .arg(&fixture)
         .arg("-o")
@@ -221,7 +224,7 @@ fn convert_html_round_trips() {
 
 #[test]
 fn rule_sets_lists_shipped_builtins() {
-    lantern()
+    lantern_cli()
         .arg("rule-sets")
         .assert()
         .success()
@@ -237,7 +240,7 @@ fn sanitize_find_duplicates_dry_run_lists_proposed_deletes() {
     let tmp = tempfile::tempdir().unwrap();
     let phantom_output = tmp.path().join("must-not-exist.html");
 
-    let assert = lantern()
+    let assert = lantern_cli()
         .arg("sanitize")
         .arg(&fixture)
         .arg("-o")
