@@ -27,6 +27,7 @@ import TitleBar from "./shell/TitleBar";
 import TabBar, { tabControlId, tabPanelId } from "./shell/TabBar";
 import StatusBar from "./shell/StatusBar";
 import LibraryHome from "./shell/LibraryHome";
+import CloseGuardDialog from "./shell/CloseGuardDialog";
 import TreePane from "./panes/TreePane";
 import ListPane from "./panes/ListPane";
 import DetailPane from "./panes/DetailPane";
@@ -128,6 +129,34 @@ export default function App() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Closing the window (Alt+F4, the OS, the title-bar button) with edited
+  // tabs asks first; see CloseGuardDialog.  Outside Tauri this is a no-op.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    import("@tauri-apps/api/window")
+      .then(({ getCurrentWindow }) =>
+        getCurrentWindow().onCloseRequested((event) => {
+          const { tabs: open, requestClose } = useDocuments.getState();
+          if (open.some((tab) => tab.dirty)) {
+            event.preventDefault();
+            void requestClose(open.map((tab) => tab.id), { closeWindow: true });
+          }
+        }),
+      )
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        // Not running inside Tauri.
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   // Files dropped anywhere on the window open as volumes.  Tauri delivers
@@ -435,6 +464,8 @@ export default function App() {
           await setActiveTab(newTabId);
         }}
       />
+
+      <CloseGuardDialog />
 
       {/* Drop target feedback while files are dragged over the window */}
       {dropping && (

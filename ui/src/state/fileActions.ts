@@ -90,29 +90,32 @@ export function useFileActions() {
     await openPaths(Array.isArray(selected) ? selected : [selected]);
   }, [openPaths]);
 
+  /** Returns true once the copy is written; false if cancelled or refused. */
   const writeCopy = useCallback(
-    async (tabId: TabId, forceDialog: boolean) => {
+    async (tabId: TabId, forceDialog: boolean): Promise<boolean> => {
       const tab = useDocuments.getState().tabs.find((x) => x.id === tabId);
-      if (!tab) return;
+      if (!tab) return false;
       let dest = forceDialog ? undefined : savedCopyPath.get(tabId);
       if (!dest) {
         const picked = await save({
           filters: SAVE_FILTERS,
           defaultPath: savedCopyPath.get(tabId) ?? suggestedCopyPath(tab.path, tab.title),
         });
-        if (typeof picked !== "string") return; // cancelled
+        if (typeof picked !== "string") return false; // cancelled
         dest = picked;
       }
       if (tab.path && samePath(dest, tab.path)) {
         toast(t("file.refuseOriginal"), "error");
-        return;
+        return false;
       }
       try {
         await ipc.export(tabId, { kind: "whole_document" }, dest);
         savedCopyPath.set(tabId, dest);
         toast(t("file.saved", { name: fileName(dest) }), "success");
+        return true;
       } catch (e) {
         toast(t("file.saveFailed", { reason: String(e) }), "error");
+        return false;
       }
     },
     [toast, t],
@@ -144,6 +147,8 @@ export function useFileActions() {
     openPaths,
     pickAndOpen,
     saveCopy,
+    /** Save a copy of a specific tab (asks where unless one was saved before). */
+    saveCopyOf: useCallback((tabId: TabId) => writeCopy(tabId, false), [writeCopy]),
     undo: useCallback(() => history("undo"), [history]),
     redo: useCallback(() => history("redo"), [history]),
   };

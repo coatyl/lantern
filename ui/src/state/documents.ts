@@ -55,6 +55,16 @@ export interface PendingReview {
   scopeLabel: string;
 }
 
+export interface PendingClose {
+  tabIds: TabId[];
+  closeWindow: boolean;
+}
+
+async function closeAppWindow(): Promise<void> {
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  await getCurrentWindow().destroy();
+}
+
 /** Default page size for the list pane. */
 export const PAGE_SIZE = 200;
 
@@ -132,6 +142,19 @@ interface DocumentsState {
   // ── Structured filter (v0.0.5) ────────────────────────────────────────────
   /** Active filter applied to both browsing and searching. `null` = no filter. */
   filter: FilterSpec | null;
+
+  // ── Closing tabs that hold unsaved edits ─────────────────────────────────
+  /** Tabs waiting on the user's "save / discard / cancel" answer. */
+  pendingClose: PendingClose | null;
+  /**
+   * Close tabs, asking first when any of them holds edits (Lantern keeps
+   * edits in memory until a copy is saved).  With `closeWindow`, the app
+   * window closes afterwards.
+   */
+  requestClose: (tabIds: TabId[], opts?: { closeWindow?: boolean }) => Promise<void>;
+  /** Close the pending tabs (and window) without asking again. */
+  confirmClose: () => Promise<void>;
+  cancelClose: () => void;
 
   // ── Review (proposed changes awaiting approval) ─────────────────────────
   review: PendingReview | null;
@@ -227,6 +250,29 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
   searchResults: null,
   filter: null,
   review: null,
+  pendingClose: null,
+
+  requestClose: async (tabIds, opts = {}) => {
+    const closeWindow = opts.closeWindow ?? false;
+    set({ pendingClose: { tabIds, closeWindow } });
+    // Nothing to lose: close straight away.
+    if (!get().tabs.some((t) => tabIds.includes(t.id) && t.dirty)) {
+      await get().confirmClose();
+    }
+  },
+
+  confirmClose: async () => {
+    const pending = get().pendingClose;
+    set({ pendingClose: null });
+    if (!pending) return;
+    for (const id of pending.tabIds) {
+      await ipc.closeTab(id);
+    }
+    await get().refreshTabs();
+    if (pending.closeWindow) await closeAppWindow();
+  },
+
+  cancelClose: () => set({ pendingClose: null }),
 
   openReview: (review) => set({ review }),
   closeReview: () => set({ review: null }),

@@ -32,7 +32,7 @@ export default function TitleBar({
   canMergeDocuments?: boolean;
 }) {
   const t = useT();
-  const { activeTab, tabs, showLibrary } = useDocuments();
+  const { activeTab, tabs, showLibrary, requestClose } = useDocuments();
   const [saving, setSaving] = useState(false);
   const { saveCopy } = useFileActions();
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -311,7 +311,7 @@ export default function TitleBar({
         <WinBtn label={t("titleBar.maximize")} onClick={() => appWindow.toggleMaximize()}>
           <MaximiseIcon />
         </WinBtn>
-        <WinBtn label={t("titleBar.close")} onClick={() => appWindow.close()} danger>
+        <WinBtn label={t("titleBar.close")} onClick={() => void requestClose(tabs.map((tab) => tab.id), { closeWindow: true })} danger>
           <CloseIcon />
         </WinBtn>
       </div>

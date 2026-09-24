@@ -104,6 +104,14 @@ export const en: Translations = {
   "titleBar.saveCopy":         "Save copy…",
   "titleBar.saveCopyHint":     "Save a clean copy (Ctrl+S). The original file is never changed.",
 
+  // ── Close guard ──────────────────────────────────────────────────────────
+  "closeGuard.title":          "Close with unsaved edits?",
+  "closeGuard.body":           "These {n} documents have edits that only exist in Lantern. The original files are untouched.",
+  "closeGuard.body.one":       "This document has edits that only exist in Lantern. The original file is untouched.",
+  "closeGuard.discard":        "Discard edits",
+  "closeGuard.save":           "Save copies and close",
+  "closeGuard.save.one":       "Save copy and close",
+
   // ── Tree pane ────────────────────────────────────────────────────────────
   "tree.label":                "Folders",
   "tree.unnamed":              "(unnamed)",
