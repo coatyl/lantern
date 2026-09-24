@@ -7,7 +7,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { RUN_PASS_EVENT } from "../components/commandPalette";
+import { RUN_PASS_EVENT } from "../components/paletteCommands";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useDocuments } from "../state/documents";

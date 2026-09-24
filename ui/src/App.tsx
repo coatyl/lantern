@@ -42,7 +42,7 @@ import {
   requestSearchFocus,
   type CommandId,
   type PaletteCommand,
-} from "./components/commandPalette";
+} from "./components/paletteCommands";
 import Toaster from "./components/Toast";
 
 function isEditableTarget(target: EventTarget | null): boolean {

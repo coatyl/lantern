@@ -105,6 +105,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Windows and macOS resolve paths case-insensitively and TypeScript
+      # imports drop the extension, so `commandPalette.ts` next to
+      # `CommandPalette.tsx` breaks the Windows build while Linux passes.
+      - name: Reject paths that differ only in case
+        shell: bash
+        run: |
+          clashes=$(git ls-files | sed -E 's/\.(tsx?|jsx?|mjs|cjs)$//' | tr '[:upper:]' '[:lower:]' | sort | uniq -d)
+          if [ -n "$clashes" ]; then
+            echo "::error::these paths collide on case-insensitive filesystems:"
+            echo "$clashes"
+            exit 1
+          fi
       - id: filter
         name: Detect non-markdown changes and signing availability
         shell: bash
