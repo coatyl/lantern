@@ -51,7 +51,10 @@ export default function LibraryHome({
 
   const handleOpen = async () => {
     const selected = await open({
-      filters: [{ name: "Bookmark files", extensions: ["html", "htm"] }],
+      filters: [
+        { name: "Bookmark files", extensions: ["html", "htm", "json"] },
+        { name: "All files", extensions: ["*"] },
+      ],
       multiple: false,
     });
     if (typeof selected === "string") {
@@ -208,7 +211,8 @@ function EmptyLibrary({
         <p className="text-xs text-neutral-500">{recoveryMessage}</p>
       )}
 
-      <p className="text-[11px] text-neutral-700 mt-2">{t("library.hint")}</p>
+      <p className="text-xs text-neutral-500">{t("library.paletteHint")}</p>
+      <p className="text-[11px] text-neutral-700">{t("library.hint")}</p>
     </>
   );
 }
@@ -306,7 +310,10 @@ function PopulatedLibrary({
         </ul>
       </section>
 
-      <p className="text-[11px] text-neutral-700">{t("library.hint")}</p>
+      <footer className="flex flex-col gap-1">
+        <p className="text-xs text-neutral-500">{t("library.paletteHint")}</p>
+        <p className="text-[11px] text-neutral-700">{t("library.hint")}</p>
+      </footer>
     </div>
   );
 }

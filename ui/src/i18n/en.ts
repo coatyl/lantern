@@ -61,13 +61,6 @@ export const en: Translations = {
   // ── Toasts (v0.0.11 QoL slice 1) ────────────────────────────────────────
   "toast.dismiss":             "Dismiss",
 
-  // ── Welcome (warm-archive identity) ─────────────────────────────────────
-  "welcome.kicker":            "Private archive",
-  "welcome.title":             "Lantern",
-  "welcome.manifesto":         "A light in a dark room. The archive stays on this machine.",
-  "welcome.open":              "Open file…",
-  "welcome.hint":              "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
-
   // ── Empty states (v0.0.11 QoL slice 1; warm-archive voice) ──────────────
   "empty.tree":                "No folders in this archive yet.",
   "empty.tree.description":    "Open a bookmark export that already has a folder tree, or add a folder to begin.",
@@ -94,7 +87,7 @@ export const en: Translations = {
   "commandPalette.runPass":      "Run pass",
   "commandPalette.search":       "Focus search",
   "commandPalette.toggleTheme":  "Toggle theme",
-  "welcome.paletteHint":         "Press Ctrl+K (⌘K) to open the command palette.",
+
   // ── Library home (the stacks; the workspace is inside a volume) ─────────
   "library.region":                    "Library",
   "library.title":                     "Library",
@@ -116,5 +109,6 @@ export const en: Translations = {
   "library.recovery.failed":           "Could not restore the previous session.",
   "library.recovery.partial":          "Restored {restored} files; {failed} could not be reopened.",
   "library.recovery.more":             "+{n} more",
+  "library.paletteHint":               "Press Ctrl+K (⌘K) to open the command palette.",
   "library.hint":                      "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
 };

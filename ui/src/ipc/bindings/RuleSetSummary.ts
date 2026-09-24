@@ -9,7 +9,7 @@ export type RuleSetSummary = { name: string,
  */
 treatment_count: number, 
 /**
- * True for the three built-in rule sets that ship with Lantern.
+ * True for the shipped built-in rule sets.
  */
 is_builtin: boolean, 
 /**

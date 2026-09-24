@@ -22,6 +22,8 @@ fn chrome_json_fixture() -> PathBuf {
         .join("tests")
         .join("fixtures")
         .join("chrome-bookmarks.json")
+}
+
 fn duplicates_fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -218,7 +220,6 @@ fn convert_html_round_trips() {
 }
 
 #[test]
-fn rule_sets_lists_three_builtins() {
 fn rule_sets_lists_shipped_builtins() {
     lantern()
         .arg("rule-sets")

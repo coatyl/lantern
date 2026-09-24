@@ -1,12 +1,12 @@
 /**
  * Command palette: open via Ctrl+K, filter, run a command, Escape restores
- * focus.  Covers the welcome-screen first-run hint and the workspace path.
+ * focus.  Covers the library-home first-run hint and the workspace path.
  */
 
 import { test, expect } from "@playwright/test";
 import { useFixture } from "./fixtures/use-fixture";
 
-test("welcome screen points at Ctrl+K and the palette opens Settings", async ({
+test("library home points at Ctrl+K and the palette opens Settings", async ({
   page,
 }) => {
   await page.goto("/");
