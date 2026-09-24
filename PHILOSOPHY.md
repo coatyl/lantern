@@ -30,8 +30,8 @@ how a collection *enters* Lantern, not how you *use* Lantern.
 This is the largest identity shift. It turns a utility into a place.
 
 **What has to be true.** A content-addressed local store in `lantern-io`.
-The existing 3-way merge and undo become history, not one-session tricks.
-The welcome screen dies; a library home replaces it.
+The existing cross-document merge and undo become history, not one-session
+tricks. The library home that replaced the welcome screen is the first step.
 
 **What we refuse.** A Lantern account. A Lantern server. Sync that is not
 "a folder you pointed at, encrypted, yours."
@@ -52,8 +52,8 @@ want this, and where does it belong?"
 
 **What has to be true.** A second class of *passes* next to treatments:
 analysis passes that propose *structure* (merge these two, move this, drop
-this) with the same diff UX. On-device only. No ranking model that phones
-home.
+this) with the same diff UX. *Find duplicates* (exact URLs) is the first.
+On-device only. No ranking model that phones home.
 
 ---
 
@@ -75,11 +75,12 @@ This is how we get to five platforms without five products.
 
 ---
 
-## Bet 4 — The brand is a lantern, not a IDE skin.
+## Bet 4 — The brand is a lantern, not an IDE skin.
 
-**Today.** The UI is a competent dark-mode developer tool: three panes,
-neutral greys, amber accent, Inter. It looks like a cousin of a code editor
-that happens to edit bookmarks. The welcome screen is a logo and a button.
+**Today.** A first cut is in: warm ink and paper themes, a library home
+instead of a logo-and-button welcome screen, empty states that say what to
+do. Underneath it is still a three-pane developer tool, a cousin of a code
+editor that happens to edit bookmarks.
 
 **The change.** Lean into the name. Light in a dark room. Paper, warmth,
 quiet craft. The archive should *feel* like an archive — not like VS Code
@@ -113,12 +114,12 @@ central registry that we operate.
 
 ## Bet 6 — Universal memory, not Netscape HTML.
 
-**Today.** One format in, one format out. The rest of the world's bookmarks
-(Chrome JSON, Firefox `places.sqlite`, Safari plist, Pocket, Raindrop,
-OneTab, Markdown link dumps) are someone else's problem.
+**Today.** Netscape HTML and Chrome JSON in, Netscape HTML out. The rest of
+the world's bookmarks (Firefox `places.sqlite`, Safari plist, Pocket,
+Raindrop, OneTab, Markdown link dumps) are someone else's problem.
 
 **The change.** Lantern is the **Pandoc of saved links**. Read anything,
-write anything, the model in the middle is ours. `lantern convert` is a
+write anything, the model in the middle is ours. `lantern-cli convert` is a
 first-class verb. Live browser-profile reads are strictly read-only and
 loudly labeled.
 
