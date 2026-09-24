@@ -50,6 +50,12 @@ which will be **the stability promise**.
   inline instead of failing silently.
 - **Toasts for file actions**: saved, save failed, open failed,
   unsupported file, nothing to undo / redo.
+- **Close guard.** Closing a tab, "close others / all", or the window
+  (title bar, `Alt+F4`) with unsaved edits asks first: save copies and
+  close, discard, or cancel.
+- **Shortcuts:** `Ctrl+W` / `Ctrl+Shift+W` close tab / all,
+  `Ctrl+Tab` / `Ctrl+Shift+Tab` switch tabs, `Ctrl+F` search, `Ctrl+R`
+  run the selected rule set, `Ctrl+M` merge.
 
 ### Changed
 
@@ -74,6 +80,20 @@ which will be **the stability promise**.
 - **Library home** carries the command-palette hint and accepts
   Chrome JSON in its open dialog.
 - Strings are pluralised ("1 change", "1 bookmark").
+- **BREAKING (CLI):** the command-line binary is `lantern-cli` (it was
+  `lantern`, the same name as the GUI executable, so a workspace build
+  wrote both to one path).
+- The offline build no longer links `lantern-net` at all.
+- Settings → Keyboard lists exactly the shortcuts that are bound (it
+  advertised several that did nothing).
+- Internals: `lantern-app`'s 2,000-line `commands.rs` is split per
+  domain, one shared `Modal` shell replaces per-dialog chrome, the
+  rule-set editor is split into `components/rule-sets/` (its header
+  buttons no longer sit under the close button), and the UI imports the
+  generated ts-rs types instead of a hand-kept mirror.
+- Docs: README, CONTRIBUTING (now including how to release), SECURITY
+  and ROADMAP rewritten against the code; references to documents that
+  are not in the repository are gone.
 - Version files are at `0.2.0`.
 
 ### Fixed
@@ -84,9 +104,34 @@ which will be **the stability promise**.
 - The proposed-changes preview was translucent over the detail pane and
   cut URLs to one line; deletions showed as "(deleted)" with no title or
   URL.  Changes now carry `node_title`, `node_url` and `location`.
+- **Undo** of a change set whose deletions were not in document order
+  restored nodes at the wrong positions, and deleting a folder together
+  with one of its children duplicated the child on undo.
+- Newly created bookmarks, folders and separators could reuse an id
+  already in the parsed document.
+- **Search** missed matches inside words ("brar" in "library") and
+  queries shorter than three characters.
+- Duplicating a rule set dropped its per-treatment configuration.
+- Moving a folder into its own subtree panicked; it is now refused.
+- Duplicate proposals and extra Chrome roots came out in hash-map order
+  (different on every run); both follow document order.
+- Folder-name entity decoding turned `&mdash;` / `&ndash;` into `-`, and
+  an entity right after a stray `&` was swallowed.
+- Export dropped `ICON_URI` attributes.
+- Log lines with a right-aligned level or tab separators lost their
+  message in the Logs pane.
 - The integration branch that carried the features above had been
   merged with both sides of every conflict kept and did not compile;
   repaired (CLI integration tests, `App.tsx`).
+
+### Security
+
+- The release workflow runs no third-party actions and no build cache:
+  the toolchain comes from `rustup` and `rust-toolchain.toml`, and
+  artefacts build from a clean target directory.
+- The CI signing job exposes the certificate secrets only to the step
+  that imports them (they were job-level environment visible to every
+  action) and runs no third-party actions.
 
 ### Removed
 
@@ -492,7 +537,7 @@ ships as soon as one is in hand.  349 Rust + 54 Vitest tests, all green.
 - Unknown keys fall through to the key string itself, so missing
   translations are visible-but-harmless during a mid-flight migration.
 - Adding a locale is a drop-in file in `ui/src/i18n/` plus a one-line
-  registry widen.  See `ui/src/locales/README.md` for the contract.
+  registry widen.  See `ui/src/i18n/README.md` for the contract.
 - 3 new Vitest tests cover known-key lookup, unknown-key fallback, and
   parameter substitution.
 
