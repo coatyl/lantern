@@ -42,6 +42,14 @@ pub enum IoError {
     /// A treatment's `configure()` rejected its config block.
     #[error("invalid config for treatment \"{id}\": {reason}")]
     TreatmentConfig { id: String, reason: String },
+
+    /// Shipped rule sets cannot be deleted (the next seed would recreate them).
+    #[error("refusing to delete built-in rule set \"{0}\"")]
+    BuiltinRuleSet(String),
+
+    /// A rule set with this name already exists in the store.
+    #[error("rule set \"{0}\" already exists")]
+    RuleSetExists(String),
 }
 
 pub type Result<T> = std::result::Result<T, IoError>;

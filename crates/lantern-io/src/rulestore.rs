@@ -265,9 +265,7 @@ fn save(rules_dir: &Path, rs: &RuleSet) -> Result<PathBuf> {
 /// would silently recreate them.
 pub fn delete_rule_set(rules_dir: &Path, name: &str) -> Result<()> {
     if is_builtin(name) {
-        return Err(IoError::TomlSer(format!(
-            "refusing to delete built-in rule set \"{name}\""
-        )));
+        return Err(IoError::BuiltinRuleSet(name.to_owned()));
     }
     let path = file_path_for(rules_dir, name);
     if !path.exists() {
@@ -276,16 +274,16 @@ pub fn delete_rule_set(rules_dir: &Path, name: &str) -> Result<()> {
     std::fs::remove_file(&path).map_err(|e| IoError::Write { path, source: e })
 }
 
-/// Copy an existing rule set under a new name, as an ordinary user set.
+/// Copy an existing rule set, including per-treatment configuration, under
+/// a new name as an ordinary user set.
 pub fn duplicate_rule_set(rules_dir: &Path, src_name: &str, dst_name: &str) -> Result<PathBuf> {
-    let src = load_rule_set(rules_dir, src_name)?;
+    let mut rs = load_rule_set(rules_dir, src_name)?;
     if file_path_for(rules_dir, dst_name).exists() {
-        return Err(IoError::TomlSer(format!(
-            "rule set \"{dst_name}\" already exists"
-        )));
+        return Err(IoError::RuleSetExists(dst_name.to_owned()));
     }
-    let treatment_ids: Vec<&str> = src.treatments.iter().map(|t| t.id()).collect();
-    save_rule_set(rules_dir, dst_name, &treatment_ids)
+    rs.id = dst_name.to_owned();
+    rs.name = dst_name.to_owned();
+    save(rules_dir, &rs)
 }
 
 #[cfg(test)]
@@ -400,7 +398,12 @@ mod tests {
         delete_rule_set(dir.path(), "Temp").unwrap();
         assert!(!file_path_for(dir.path(), "Temp").exists());
 
-        assert!(delete_rule_set(dir.path(), "Minimal clean").is_err());
+        let err = delete_rule_set(dir.path(), "Minimal clean").unwrap_err();
+        assert!(matches!(err, IoError::BuiltinRuleSet(_)), "{err:?}");
+        assert_eq!(
+            err.to_string(),
+            "refusing to delete built-in rule set \"Minimal clean\""
+        );
         assert!(file_path_for(dir.path(), "Minimal clean").exists());
     }
 
@@ -416,10 +419,37 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_keeps_treatment_config() {
+        // Regression: duplicating used to re-save treatment IDs only, so a
+        // configured `url.qp.custom` came back with an empty param list.
+        let dir = tempfile::tempdir().unwrap();
+        let config = toml::Value::Table(toml::from_str(r#"params = ["ref"]"#).unwrap());
+        save_rule_set_with_configs(
+            dir.path(),
+            "Custom",
+            &[
+                ("title.whitespace".into(), None),
+                ("url.qp.custom".into(), Some(config.clone())),
+            ],
+        )
+        .unwrap();
+
+        duplicate_rule_set(dir.path(), "Custom", "Copy").unwrap();
+
+        let copy = load_rule_set(dir.path(), "Copy").unwrap();
+        assert_eq!(copy.name, "Copy");
+        assert_eq!(copy.treatments[1].current_config(), Some(config));
+    }
+
+    #[test]
     fn duplicate_refuses_collision() {
         let dir = tempfile::tempdir().unwrap();
         save_rule_set(dir.path(), "A", &["title.whitespace"]).unwrap();
         save_rule_set(dir.path(), "B", &["title.whitespace"]).unwrap();
-        assert!(duplicate_rule_set(dir.path(), "A", "B").is_err());
+        let err = duplicate_rule_set(dir.path(), "A", "B").unwrap_err();
+        assert!(
+            matches!(&err, IoError::RuleSetExists(n) if n == "B"),
+            "{err:?}"
+        );
     }
 }

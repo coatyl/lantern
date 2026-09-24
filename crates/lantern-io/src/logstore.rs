@@ -53,11 +53,12 @@ pub fn read_recent(path: &Path, max_lines: usize) -> io::Result<Vec<RawLogLine>>
     Ok(recent.into())
 }
 
+/// Split `timestamp level message`, tolerating runs of whitespace between
+/// columns (e.g. right-aligned levels: `...Z  INFO msg`).
 fn parse_line(line: &str) -> Option<RawLogLine> {
-    let mut parts = line.trim().splitn(3, char::is_whitespace);
-    let timestamp = parts.next().filter(|s| !s.is_empty())?;
-    let level = parts.find(|s| !s.is_empty())?;
-    let message = parts.next()?.trim_start();
+    let (timestamp, rest) = line.trim().split_once(char::is_whitespace)?;
+    let (level, message) = rest.trim_start().split_once(char::is_whitespace)?;
+    let message = message.trim_start();
     Some(RawLogLine {
         timestamp: timestamp.to_owned(),
         level: level.to_owned(),
@@ -86,8 +87,11 @@ mod tests {
             &path,
             "2026-05-05T17:23:45Z INFO ok line\n\
              garbage-without-three-fields\n\
+             2026-05-05T17:23:45Z INFO\n\
              \n\
-             2026-05-05T17:23:46Z WARN   padded message\n",
+             2026-05-05T17:23:46Z WARN   padded message\n\
+             2026-05-05T17:23:47Z  INFO right-aligned level\n\
+             2026-05-05T17:23:48Z\tERROR\ttab separated\n",
         )
         .unwrap();
 
@@ -96,6 +100,8 @@ mod tests {
             [
                 line("2026-05-05T17:23:45Z", "INFO", "ok line"),
                 line("2026-05-05T17:23:46Z", "WARN", "padded message"),
+                line("2026-05-05T17:23:47Z", "INFO", "right-aligned level"),
+                line("2026-05-05T17:23:48Z", "ERROR", "tab separated"),
             ]
         );
     }
