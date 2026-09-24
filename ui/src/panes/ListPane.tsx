@@ -64,7 +64,7 @@ import { EmptyState, EmptyFolderIcon, EmptySearchIcon } from "../components/Empt
 import { useElementSize } from "../hooks/useElementSize";
 import { useT } from "../i18n/I18nProvider";
 import { useToast } from "../hooks/useToast";
-import { SEARCH_FOCUS_EVENT } from "../components/commandPalette";
+import { SEARCH_FOCUS_EVENT } from "../components/paletteCommands";
 import type { FolderItem, SortColumn } from "../ipc/types";
 
 const COLUMNS: { key: SortColumn | null; label: string; className: string }[] = [

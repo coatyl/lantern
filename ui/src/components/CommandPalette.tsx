@@ -14,7 +14,7 @@ import {
   stepActiveIndex,
   type CommandId,
   type PaletteCommand,
-} from "./commandPalette";
+} from "./paletteCommands";
 
 interface CommandPaletteProps {
   open: boolean;

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 
 import { CommandPalette } from "./CommandPalette";
-import { filterCommands, stepActiveIndex, type PaletteCommand } from "./commandPalette";
+import { filterCommands, stepActiveIndex, type PaletteCommand } from "./paletteCommands";
 import { I18nProvider } from "../i18n/I18nProvider";
 
 const COMMANDS: PaletteCommand[] = [
