@@ -46,6 +46,8 @@ To cut a release:
 
 The workflow refuses to publish if the tag does not match all four version files, or if `CHANGELOG.md` has no section for the version. That section becomes the release notes.
 
+If a tag was pushed while Actions could not run, run **Release** by hand with the `tag` input set to that tag (e.g. `v0.1.0`) to build and publish it.
+
 ## v1.0.0 artefacts (2026-05-06)
 
 These were local builds labelled v1.0.0. That label was never published as a version; the first published version is v0.1.0 (above).
