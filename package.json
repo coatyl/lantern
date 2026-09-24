@@ -1,7 +1,7 @@
 {
   "name": "lantern",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "workspaces": ["ui"],
   "scripts": {
     "dev":        "tauri dev   --config crates/lantern-app/tauri.conf.json",

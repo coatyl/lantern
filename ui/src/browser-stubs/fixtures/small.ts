@@ -150,7 +150,7 @@ export function smallFixture(): FixtureState {
   ];
 
   const buildInfo: BuildInfo = {
-    version: "0.1.0-rc1",
+    version: "0.2.0",
     build_flavor: "default",
     rust_version: "1.80.0",
     git_commit: null,
