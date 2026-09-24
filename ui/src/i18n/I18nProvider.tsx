@@ -49,7 +49,7 @@ export function I18nProvider({
         if (!params) return raw;
         return Object.entries(params).reduce(
           (acc, [k, v]) =>
-            acc.replace(new RegExp(`\\{${k}\\}`, "g"), String(v)),
+            acc.replace(new RegExp(`\\{${k}\\}`, "g"), typeof v === "number" ? v.toLocaleString() : String(v)),
           raw,
         );
       },

@@ -18,27 +18,23 @@ export default function StatusBar() {
       className="h-6 flex items-center justify-between px-3
                  bg-surface-1 border-t border-[color:var(--border)]/70 shrink-0 select-none"
     >
-      {/* Left: document stats. Audit P2 #21: neutral-600 (~3:1) → neutral-400
-          (~5.5:1) so stat unit labels clear WCAG AA on surface-1. */}
+      {/* Left: document stats (zero counts are left out) */}
       {activeInfo ? (
         <span className="flex items-center gap-2 text-[11px] text-ink-muted">
-          <span className="tabular-nums">
-            {t("statusBar.bookmarks", {
-              n: activeInfo.stats.bookmark_count.toLocaleString(),
-            })}
-          </span>
-          <Sep />
-          <span className="tabular-nums">
-            {t("statusBar.folders", {
-              n: activeInfo.stats.folder_count.toLocaleString(),
-            })}
-          </span>
-          <Sep />
-          <span className="tabular-nums">
-            {t("statusBar.separators", {
-              n: activeInfo.stats.separator_count.toLocaleString(),
-            })}
-          </span>
+          {(
+            [
+              ["statusBar.bookmarks", activeInfo.stats.bookmark_count],
+              ["statusBar.folders", activeInfo.stats.folder_count],
+              ["statusBar.separators", activeInfo.stats.separator_count],
+            ] as const
+          )
+            .filter(([, n], i) => i === 0 || n > 0)
+            .map(([key, n], i) => (
+              <span key={key} className="flex items-center gap-2">
+                {i > 0 && <Sep />}
+                <span className="tabular-nums">{t(key, { n })}</span>
+              </span>
+            ))}
 
           {activeInfo.dirty && (
             <>
@@ -56,8 +52,7 @@ export default function StatusBar() {
         <span className="text-[11px] text-neutral-400">{t("library.title")}</span>
       )}
 
-      {/* Right: OFFLINE badge. Audit P2 #21: badge text neutral-600 (~3:1) →
-          neutral-300 (~9:1) so the always-visible status reads as AA-strong. */}
+      {/* Right: OFFLINE badge */}
       <span
         role="status"
         aria-live="polite"

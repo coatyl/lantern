@@ -137,6 +137,12 @@ export const en: Translations = {
   "list.count.results.one":    "1 result",
 
   // ── Detail pane ──────────────────────────────────────────────────────────
+  "detail.document":           "Document",
+  "detail.stat.bookmarks":     "bookmarks",
+  "detail.stat.folders":       "folders",
+  "detail.stat.separators":    "separators",
+  "detail.selectHint":         "Select a bookmark or folder to see its details.",
+  "detail.edited":             "Edited in Lantern. The original file is untouched; press Ctrl+S to save a clean copy.",
   "detail.scope":              "Run on",
   "detail.scope.document":     "Whole document",
   "detail.scope.folder":       "This folder",

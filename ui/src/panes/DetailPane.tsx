@@ -31,8 +31,9 @@ type PassScope = "document" | "folder";
 export default function DetailPane() {
   const t = useT();
   const { toast } = useToast();
-  const { activeTab, selectedItem, pendingDelete, setPendingDelete,
+  const { activeTab, tabs, selectedItem, pendingDelete, setPendingDelete,
           refreshTree, refreshList, folderStack, openReview } = useDocuments();
+  const activeInfo = tabs.find((tab) => tab.id === activeTab) ?? null;
 
   const { summaries, refresh: refreshRuleSets } = useRuleSetList();
 
@@ -118,11 +119,36 @@ export default function DetailPane() {
             await Promise.all([refreshTree(), refreshList()]);
           }}
         />
-      ) : (
-        <div className="px-3 py-4 text-xs text-neutral-600 border-b border-neutral-800 shrink-0">
-          Select an item to see details.
-        </div>
-      )}
+      ) : activeInfo ? (
+        <section className="p-3 border-b border-neutral-800 shrink-0 space-y-2">
+          <span className="text-[10px] uppercase tracking-wider text-neutral-600 font-semibold">
+            {t("detail.document")}
+          </span>
+          <p className="text-sm text-neutral-100 font-medium break-words">{activeInfo.title}</p>
+          {activeInfo.path && (
+            <p className="text-[11px] text-neutral-500 break-all" title={activeInfo.path}>
+              {activeInfo.path}
+            </p>
+          )}
+          <dl className="grid grid-cols-3 gap-2 pt-1">
+            {(
+              [
+                ["detail.stat.bookmarks", activeInfo.stats.bookmark_count],
+                ["detail.stat.folders", activeInfo.stats.folder_count],
+                ["detail.stat.separators", activeInfo.stats.separator_count],
+              ] as const
+            ).map(([key, n]) => (
+              <div key={key} className="rounded-md bg-surface-2 px-2 py-1.5">
+                <dd className="text-sm text-neutral-100 tabular-nums">{n.toLocaleString()}</dd>
+                <dt className="text-[10px] text-neutral-500">{t(key)}</dt>
+              </div>
+            ))}
+          </dl>
+          <p className="text-[11px] text-neutral-500 leading-snug">
+            {activeInfo.dirty ? t("detail.edited") : t("detail.selectHint")}
+          </p>
+        </section>
+      ) : null}
 
       {/* ── Sanitize section ─────────────────────────────────────────────── */}
       <section className="p-3 border-b border-neutral-800 shrink-0">
