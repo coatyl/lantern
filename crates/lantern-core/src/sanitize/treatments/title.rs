@@ -9,6 +9,7 @@
 //! | `title.author_suffix`    | Strip "by Author Name" suffixes      | v0.0.2  |
 //! | `title.regex`            | Apply user-supplied regex replace    | v0.0.2  |
 
+use super::text::{decode_html_entities, normalize_whitespace};
 use crate::model::document::Field;
 use crate::model::node::Node;
 use crate::sanitize::treatment::{Change, PassContext, Treatment, TreatmentCategory};
@@ -62,11 +63,6 @@ impl Treatment for WhitespaceTreatment {
     }
 }
 
-/// Trim + collapse any run of whitespace characters to a single ASCII space.
-fn normalize_whitespace(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 // ---------------------------------------------------------------------------
 // Decode HTML entities  (title.html_entities)
 // ---------------------------------------------------------------------------
@@ -115,89 +111,6 @@ impl Treatment for HtmlEntitiesTreatment {
             false,
         )]
     }
-}
-
-/// Decode the most common named and numeric HTML entities.
-///
-/// No external crate: handles the subset that browsers actually produce in
-/// Netscape bookmark exports.
-fn decode_html_entities(s: &str) -> String {
-    if !s.contains('&') {
-        return s.to_owned();
-    }
-
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        if ch != '&' {
-            out.push(ch);
-            continue;
-        }
-        // Collect everything up to the next ';' (or end of string / non-entity char).
-        let mut entity = String::new();
-        let mut terminated = false;
-        for ec in chars.by_ref() {
-            if ec == ';' {
-                terminated = true;
-                break;
-            }
-            if !ec.is_ascii_alphanumeric() && ec != '#' {
-                entity.push(ec);
-                break;
-            }
-            entity.push(ec);
-        }
-        if !terminated {
-            // Not a valid entity: emit the '&' and the characters we consumed.
-            out.push('&');
-            out.push_str(&entity);
-            continue;
-        }
-        match entity.as_str() {
-            "amp" => out.push('&'),
-            "lt" => out.push('<'),
-            "gt" => out.push('>'),
-            "quot" => out.push('"'),
-            "apos" => out.push('\''),
-            "nbsp" => out.push(' '),
-            "copy" => out.push('©'),
-            "reg" => out.push('®'),
-            "trade" => out.push('™'),
-            "mdash" => out.push('—'),
-            "ndash" => out.push('–'),
-            "lsquo" => out.push('\u{2018}'),
-            "rsquo" => out.push('\u{2019}'),
-            "ldquo" => out.push('\u{201C}'),
-            "rdquo" => out.push('\u{201D}'),
-            _ if entity.starts_with('#') => {
-                // Numeric entity: &#123; or &#x7B;
-                let code_str = &entity[1..];
-                let code: Option<u32> = if let Some(hex) = code_str
-                    .strip_prefix('x')
-                    .or_else(|| code_str.strip_prefix('X'))
-                {
-                    u32::from_str_radix(hex, 16).ok()
-                } else {
-                    code_str.parse().ok()
-                };
-                if let Some(c) = code.and_then(char::from_u32) {
-                    out.push(c);
-                } else {
-                    out.push('&');
-                    out.push_str(&entity);
-                    out.push(';');
-                }
-            }
-            _ => {
-                // Unknown entity: pass through unchanged.
-                out.push('&');
-                out.push_str(&entity);
-                out.push(';');
-            }
-        }
-    }
-    out
 }
 
 // ---------------------------------------------------------------------------

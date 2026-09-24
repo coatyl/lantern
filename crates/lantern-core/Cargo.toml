@@ -8,7 +8,7 @@ description  = "Pure core logic for Lantern: parser, model, sanitization, diff, 
 [dependencies]
 chrono            = { workspace = true }
 html5ever         = { workspace = true }
-indexmap          = { workspace = true }
+indexmap          = { workspace = true, features = ["serde"] }
 markup5ever_rcdom = { workspace = true }
 regex             = { workspace = true }
 serde             = { workspace = true }

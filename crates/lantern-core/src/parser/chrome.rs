@@ -25,9 +25,8 @@
 //! HTML parser. Extra Chromium fields (`guid`, `id`, `meta_info`, …) are
 //! ignored — we are read-only and do not write the profile file back.
 
-use std::collections::HashMap;
-
 use chrono::{DateTime, Utc};
+use indexmap::IndexMap;
 use serde::Deserialize;
 
 use crate::error::{CoreError, Result};
@@ -52,7 +51,8 @@ const KNOWN_ROOTS: &[(&str, bool)] = &[("bookmark_bar", true), ("other", false),
 
 #[derive(Debug, Deserialize)]
 struct ChromeBookmarksFile {
-    roots: HashMap<String, ChromeNode>,
+    /// Kept in file order so extra roots import in the order they appear.
+    roots: IndexMap<String, ChromeNode>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -183,11 +183,11 @@ pub fn parse_chrome_json(bytes: &[u8]) -> Result<Document> {
 // Tree construction
 // ---------------------------------------------------------------------------
 
-fn build_roots(mut roots: HashMap<String, ChromeNode>, id_gen: &mut NodeIdAllocator) -> Vec<Node> {
+fn build_roots(mut roots: IndexMap<String, ChromeNode>, id_gen: &mut NodeIdAllocator) -> Vec<Node> {
     let mut children = Vec::new();
 
     for (key, is_toolbar) in KNOWN_ROOTS {
-        if let Some(node) = roots.remove(*key) {
+        if let Some(node) = roots.shift_remove(*key) {
             if let Some(n) = chrome_node_to_model(node, *is_toolbar, id_gen) {
                 children.push(n);
             }
@@ -502,5 +502,27 @@ mod tests {
         };
         assert_eq!(managed.name, "Managed bookmarks");
         assert_eq!(doc.stats.bookmark_count, 1);
+    }
+
+    #[test]
+    fn extra_roots_keep_file_order() {
+        let json = br#"{
+            "roots": {
+                "zeta":  { "type": "folder", "name": "Z", "children": [] },
+                "other": { "type": "folder", "name": "Other", "children": [] },
+                "alpha": { "type": "folder", "name": "A", "children": [] },
+                "mid":   { "type": "folder", "name": "M", "children": [] },
+                "beta":  { "type": "folder", "name": "B", "children": [] }
+            }
+        }"#;
+        let doc = parse_chrome_json(json).unwrap();
+        let names: Vec<_> = doc
+            .root
+            .children
+            .iter()
+            .map(|n| n.as_folder().unwrap().name.as_str())
+            .collect();
+        // Known roots first, then the rest exactly as they appear.
+        assert_eq!(names, ["Other", "Z", "A", "M", "B"]);
     }
 }

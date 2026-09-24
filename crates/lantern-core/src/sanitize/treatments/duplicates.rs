@@ -15,11 +15,8 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
-
 use crate::model::document::Document;
-use crate::model::ids::NodeId;
-use crate::model::node::{BookmarkUrl, Folder, Node};
+use crate::model::node::{Bookmark, BookmarkUrl, Folder, Node};
 use crate::sanitize::treatment::{Change, PassContext, Treatment, TreatmentCategory};
 
 /// Treatment ID for the exact-URL duplicate pass.
@@ -51,100 +48,77 @@ impl Treatment for ExactUrlDuplicatesTreatment {
     }
 
     fn propose_document(&self, doc: &Document, _ctx: &PassContext) -> Vec<Change> {
-        let mut groups: HashMap<String, Vec<Candidate>> = HashMap::new();
-        collect_candidates(&doc.root, &mut groups);
+        let mut bookmarks = Vec::new();
+        collect_bookmarks(&doc.root, &mut bookmarks);
+        let keys: Vec<String> = bookmarks.iter().map(|b| exact_url_key(&b.url)).collect();
 
-        let mut changes = Vec::new();
-        for members in groups.into_values() {
-            if members.len() < 2 {
-                continue;
-            }
-            let keeper_id = pick_keeper(&members);
-            for member in &members {
-                if member.id == keeper_id {
-                    continue;
-                }
-                changes.push(Change::delete_node(
-                    member.id,
-                    self.id(),
-                    format!(
-                        "Exact-URL duplicate of an older (or first-seen) bookmark; \
-                         keeper node {} has the same URL",
-                        keeper_id
-                    ),
-                ));
-            }
+        // Keeper per URL: the oldest `ADD_DATE` when both sides have one,
+        // otherwise the first-seen bookmark.
+        let mut keepers: HashMap<&str, &Bookmark> = HashMap::new();
+        for (bookmark, key) in bookmarks.iter().zip(&keys) {
+            keepers
+                .entry(key.as_str())
+                .and_modify(|keeper| {
+                    if let (Some(kept), Some(this)) = (keeper.add_date, bookmark.add_date) {
+                        if this < kept {
+                            *keeper = bookmark;
+                        }
+                    }
+                })
+                .or_insert(bookmark);
         }
-        changes
-    }
-}
 
-/// One bookmark considered for exact-URL grouping.
-struct Candidate {
-    id: NodeId,
-    add_date: Option<DateTime<Utc>>,
-    /// DFS encounter order so first-seen is well-defined.
-    seen_at: usize,
+        // Emit the extras in document order so the preview is stable.
+        bookmarks
+            .iter()
+            .zip(&keys)
+            .filter_map(|(bookmark, key)| {
+                let keeper = keepers[key.as_str()];
+                (keeper.id != bookmark.id).then(|| {
+                    Change::delete_node(
+                        bookmark.id,
+                        self.id(),
+                        format!(
+                            "Exact-URL duplicate of an older (or first-seen) bookmark; \
+                             keeper node {} has the same URL",
+                            keeper.id
+                        ),
+                    )
+                })
+            })
+            .collect()
+    }
 }
 
 /// Light exact-URL key: host is already lowercased by the `url` crate;
 /// a trailing slash on a non-root path is stripped.  Query string and
 /// fragment are kept verbatim so `?a=1` and `?a=2` stay distinct.
-pub fn exact_url_key(url: &url::Url) -> String {
-    let mut u = url.clone();
-    let path = u.path().to_owned();
-    if path.len() > 1 && path.ends_with('/') {
-        u.set_path(path.trim_end_matches('/'));
+/// Malformed URLs are keyed by their raw text.
+fn exact_url_key(url: &BookmarkUrl) -> String {
+    match url {
+        BookmarkUrl::Valid(u) => {
+            let path = u.path();
+            if path.len() > 1 && path.ends_with('/') {
+                let mut trimmed = u.clone();
+                trimmed.set_path(path.trim_end_matches('/'));
+                trimmed.into()
+            } else {
+                u.as_str().to_owned()
+            }
+        }
+        BookmarkUrl::Malformed { raw } => raw.clone(),
     }
-    u.as_str().to_owned()
 }
 
-fn collect_candidates(folder: &Folder, groups: &mut HashMap<String, Vec<Candidate>>) {
-    let mut next_seen = groups.values().map(|v| v.len()).sum();
-    collect_candidates_inner(folder, groups, &mut next_seen);
-}
-
-fn collect_candidates_inner(
-    folder: &Folder,
-    groups: &mut HashMap<String, Vec<Candidate>>,
-    next_seen: &mut usize,
-) {
+/// Every bookmark below `folder`, in document (DFS) order.
+fn collect_bookmarks<'a>(folder: &'a Folder, out: &mut Vec<&'a Bookmark>) {
     for child in &folder.children {
         match child {
-            Node::Bookmark(b) => {
-                let key = match &b.url {
-                    BookmarkUrl::Valid(u) => exact_url_key(u),
-                    BookmarkUrl::Malformed { raw } => raw.clone(),
-                };
-                let seen_at = *next_seen;
-                *next_seen += 1;
-                groups.entry(key).or_default().push(Candidate {
-                    id: b.id,
-                    add_date: b.add_date,
-                    seen_at,
-                });
-            }
-            Node::Folder(f) => collect_candidates_inner(f, groups, next_seen),
+            Node::Bookmark(b) => out.push(b),
+            Node::Folder(f) => collect_bookmarks(f, out),
             Node::Separator(_) => {}
         }
     }
-}
-
-/// Keep the oldest dated bookmark when dates can be compared; otherwise
-/// the first-seen member of the group.
-fn pick_keeper(members: &[Candidate]) -> NodeId {
-    debug_assert!(!members.is_empty());
-    let mut keeper = &members[0];
-    for candidate in &members[1..] {
-        if let (Some(keeper_date), Some(candidate_date)) = (keeper.add_date, candidate.add_date) {
-            if candidate_date < keeper_date
-                || (candidate_date == keeper_date && candidate.seen_at < keeper.seen_at)
-            {
-                keeper = candidate;
-            }
-        }
-    }
-    keeper.id
 }
 
 // ---------------------------------------------------------------------------
@@ -159,7 +133,7 @@ mod tests {
     use crate::model::node::{AttrMap, Bookmark, BookmarkFlags, BookmarkUrl, Folder};
     use crate::sanitize::pass::{run_pass, PassTarget, RuleSet};
     use crate::sanitize::treatment::{ChangeKind, PassContext};
-    use chrono::{TimeZone, Utc};
+    use chrono::{DateTime, TimeZone, Utc};
 
     fn ctx() -> PassContext {
         PassContext { document_id: 0 }
@@ -291,9 +265,7 @@ mod tests {
             bm(3, "https://a.com/"),
         ]);
         let changes = propose(&doc);
-        assert_eq!(changes.len(), 2);
-        let mut ids: Vec<_> = changes.iter().map(|c| c.node_id).collect();
-        ids.sort_unstable();
+        let ids: Vec<_> = changes.iter().map(|c| c.node_id).collect();
         assert_eq!(ids, vec![2, 3]);
     }
 
@@ -305,9 +277,7 @@ mod tests {
             bm_dated(3, "https://a.com/page", Some(ts(3_000))),
         ]);
         let changes = propose(&doc);
-        assert_eq!(changes.len(), 2);
-        let mut ids: Vec<_> = changes.iter().map(|c| c.node_id).collect();
-        ids.sort_unstable();
+        let ids: Vec<_> = changes.iter().map(|c| c.node_id).collect();
         assert_eq!(ids, vec![1, 3]); // node 2 is oldest
         assert!(changes
             .iter()
@@ -377,20 +347,35 @@ mod tests {
         assert_eq!(doc.root.children[0].id(), 1);
     }
 
+    #[test]
+    fn deletes_are_listed_in_document_order() {
+        let doc = make_doc_with_root(vec![
+            bm(1, "https://a.com/"),
+            bm(2, "https://b.com/"),
+            bm(3, "https://c.com/"),
+            bm(4, "https://c.com/"),
+            bm(5, "https://b.com/"),
+            bm(6, "https://a.com/"),
+        ]);
+        let ids: Vec<_> = propose(&doc).iter().map(|c| c.node_id).collect();
+        assert_eq!(ids, vec![4, 5, 6]);
+    }
+
     // ── exact_url_key ─────────────────────────────────────────────────────
 
     #[test]
     fn key_strips_trailing_slash_but_keeps_query() {
-        let with_slash = url::Url::parse("https://a.com/page/?q=1").unwrap();
-        let without = url::Url::parse("https://a.com/page?q=1").unwrap();
-        assert_eq!(exact_url_key(&with_slash), exact_url_key(&without));
-        let other_query = url::Url::parse("https://a.com/page?q=2").unwrap();
-        assert_ne!(exact_url_key(&without), exact_url_key(&other_query));
+        let key = |href: &str| exact_url_key(&BookmarkUrl::Valid(url::Url::parse(href).unwrap()));
+        assert_eq!(
+            key("https://a.com/page/?q=1"),
+            key("https://a.com/page?q=1")
+        );
+        assert_ne!(key("https://a.com/page?q=1"), key("https://a.com/page?q=2"));
     }
 
     #[test]
     fn key_root_slash_stays_root() {
         let u = url::Url::parse("https://a.com/").unwrap();
-        assert_eq!(exact_url_key(&u), "https://a.com/");
+        assert_eq!(exact_url_key(&BookmarkUrl::Valid(u)), "https://a.com/");
     }
 }

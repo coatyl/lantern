@@ -3,15 +3,8 @@ use indexmap::IndexMap;
 
 use crate::model::ids::NodeId;
 
-// ---------------------------------------------------------------------------
-// AttrMap
-// ---------------------------------------------------------------------------
-
-/// An ordered attribute map that preserves insertion order.
-///
-/// Round-trip fidelity requires that unknown attributes on `<A>` and `<H3>`
-/// tags appear in the emitted file in the same order as the original.
-/// `IndexMap` provides this with O(1) lookup.
+/// Attribute map that preserves insertion order, so unknown attributes on
+/// `<A>` and `<H3>` tags are emitted in their original order.
 pub type AttrMap = IndexMap<String, String>;
 
 // ---------------------------------------------------------------------------
@@ -20,8 +13,7 @@ pub type AttrMap = IndexMap<String, String>;
 
 /// A URL that was parsed from a bookmark file.
 ///
-/// Malformed URLs are wrapped in the `Malformed` variant so they can be
-/// preserved verbatim on export without crashing the parser. URL treatments
+/// Malformed URLs are kept verbatim so they survive export. URL treatments
 /// only operate on `Valid` variants; `Malformed` URLs pass through unchanged.
 #[derive(Debug, Clone)]
 pub enum BookmarkUrl {
@@ -61,11 +53,8 @@ impl std::fmt::Display for BookmarkUrl {
 // BookmarkFlags
 // ---------------------------------------------------------------------------
 
-/// Identifies a single boolean flag on a bookmark node.
-///
-/// Used by [`ChangeKind::SetFlag`](crate::sanitize::treatment::ChangeKind) and
-/// the corresponding [`InverseKind::WriteFlag`](crate::model::document::InverseKind)
-/// to record which flag was mutated so the change can be undone.
+/// Identifies one boolean flag on a bookmark, so a flag change can be
+/// recorded and undone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BookmarkFlag {
     /// Marks the URL as a known link-shortener domain.
@@ -75,15 +64,13 @@ pub enum BookmarkFlag {
 /// Per-item runtime flags. Not serialized to the bookmark file.
 #[derive(Debug, Clone, Default)]
 pub struct BookmarkFlags {
-    /// True once a dead-link check result has been recorded for this item.
-    pub is_dead_link_checked: bool,
     /// True when the URL was flagged as a link-shortener by the
     /// `url.host.unshorten.offline` treatment.
     pub is_shortener: bool,
 }
 
 // ---------------------------------------------------------------------------
-// Folder
+// Tree nodes
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
@@ -98,14 +85,8 @@ pub struct Folder {
     pub is_toolbar: bool,
     /// All attributes on the `<H3>` tag, preserving unknown ones for round-trip.
     pub attrs: AttrMap,
-    /// Direct children. `Vec<Node>` is heap-allocated so the recursive type is
-    /// fine without explicit boxing.
     pub children: Vec<Node>,
 }
-
-// ---------------------------------------------------------------------------
-// Bookmark
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
 pub struct Bookmark {
@@ -124,18 +105,10 @@ pub struct Bookmark {
     pub flags: BookmarkFlags,
 }
 
-// ---------------------------------------------------------------------------
-// Separator
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone)]
 pub struct Separator {
     pub id: NodeId,
 }
-
-// ---------------------------------------------------------------------------
-// Node
-// ---------------------------------------------------------------------------
 
 /// A tree node in a bookmark document.
 #[derive(Debug, Clone)]
@@ -166,5 +139,20 @@ impl Node {
             Self::Bookmark(b) => Some(b),
             _ => None,
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tree lookups
+// ---------------------------------------------------------------------------
+
+impl Folder {
+    /// Depth-first lookup of the descendant with `id` (never `self`).
+    pub(crate) fn find(&self, id: NodeId) -> Option<&Node> {
+        self.children.iter().find_map(|child| match child {
+            _ if child.id() == id => Some(child),
+            Node::Folder(f) => f.find(id),
+            _ => None,
+        })
     }
 }

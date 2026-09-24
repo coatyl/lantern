@@ -14,9 +14,15 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
+# An empty workspace table keeps this crate out of the repository workspace.
+# (The root manifest's `exclude` entry alone is not enough: the crate sits
+# inside the `crates/lantern-core` member directory.)
+[workspace]
+
 [dependencies]
 lantern-core = { path = ".." }
 libfuzzer-sys = "0.4"
+url = "2"
 
 [[bin]]
 name = "fuzz_parser"

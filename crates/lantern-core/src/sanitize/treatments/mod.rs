@@ -6,6 +6,7 @@
 pub mod cross;
 pub mod duplicates;
 pub mod folder_name;
+mod text;
 pub mod title;
 pub mod url_misc;
 pub mod url_qp;

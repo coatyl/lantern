@@ -11,6 +11,7 @@
 //! left alone, keeping the two namespaces independent so a rule set can
 //! choose to clean titles, folder names, or both.
 
+use super::text::{decode_html_entities, normalize_whitespace};
 use crate::model::document::Field;
 use crate::model::node::Node;
 use crate::sanitize::treatment::{Change, PassContext, Treatment, TreatmentCategory};
@@ -44,7 +45,7 @@ impl Treatment for FolderWhitespaceTreatment {
             _ => return vec![],
         };
         let before = folder.name.as_str();
-        let after: String = before.split_whitespace().collect::<Vec<_>>().join(" ");
+        let after = normalize_whitespace(before);
         if after == before {
             return vec![];
         }
@@ -102,83 +103,6 @@ impl Treatment for FolderHtmlEntitiesTreatment {
             false,
         )]
     }
-}
-
-/// Compact entity decoder identical to the title-side implementation.  Kept
-/// duplicated rather than re-exported because the title module's helper is
-/// private; if a third caller appears we'll lift this into its own utility
-/// module.
-fn decode_html_entities(s: &str) -> String {
-    if !s.contains('&') {
-        return s.to_owned();
-    }
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    while let Some(ch) = chars.next() {
-        if ch != '&' {
-            out.push(ch);
-            continue;
-        }
-        let mut entity = String::new();
-        let mut terminated = false;
-        for ec in chars.by_ref() {
-            if ec == ';' {
-                terminated = true;
-                break;
-            }
-            if !ec.is_ascii_alphanumeric() && ec != '#' {
-                entity.push(ec);
-                break;
-            }
-            entity.push(ec);
-        }
-        if !terminated {
-            out.push('&');
-            out.push_str(&entity);
-            continue;
-        }
-        match entity.as_str() {
-            "amp" => out.push('&'),
-            "lt" => out.push('<'),
-            "gt" => out.push('>'),
-            "quot" => out.push('"'),
-            "apos" => out.push('\''),
-            "nbsp" => out.push(' '),
-            "copy" => out.push('©'),
-            "reg" => out.push('®'),
-            "trade" => out.push('™'),
-            "mdash" => out.push('-'),
-            "ndash" => out.push('-'),
-            "lsquo" => out.push('\u{2018}'),
-            "rsquo" => out.push('\u{2019}'),
-            "ldquo" => out.push('\u{201C}'),
-            "rdquo" => out.push('\u{201D}'),
-            _ if entity.starts_with('#') => {
-                let code_str = &entity[1..];
-                let code: Option<u32> = if let Some(hex) = code_str
-                    .strip_prefix('x')
-                    .or_else(|| code_str.strip_prefix('X'))
-                {
-                    u32::from_str_radix(hex, 16).ok()
-                } else {
-                    code_str.parse().ok()
-                };
-                if let Some(c) = code.and_then(char::from_u32) {
-                    out.push(c);
-                } else {
-                    out.push('&');
-                    out.push_str(&entity);
-                    out.push(';');
-                }
-            }
-            _ => {
-                out.push('&');
-                out.push_str(&entity);
-                out.push(';');
-            }
-        }
-    }
-    out
 }
 
 // ---------------------------------------------------------------------------
@@ -350,6 +274,13 @@ mod tests {
         let changes = FolderHtmlEntitiesTreatment.propose(&n, &ctx());
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].field_after().unwrap(), "Tom & Jerry");
+    }
+
+    #[test]
+    fn folder_html_entities_decode_dashes_like_titles() {
+        let n = make_folder("Rust &mdash; notes &ndash; misc");
+        let changes = FolderHtmlEntitiesTreatment.propose(&n, &ctx());
+        assert_eq!(changes[0].field_after().unwrap(), "Rust — notes – misc");
     }
 
     #[test]

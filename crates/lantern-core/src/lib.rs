@@ -7,4 +7,3 @@ pub mod sanitize;
 pub mod search;
 
 pub use error::{CoreError, Result};
-pub use search::{IndexedDoc, SearchIndex};
