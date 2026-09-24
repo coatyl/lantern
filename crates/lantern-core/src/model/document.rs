@@ -169,6 +169,9 @@ pub struct Document {
 pub const MAX_UNDO_ENTRIES: usize = 100;
 
 impl Document {
+    /// Wrap an already-built tree.  The document's id allocator starts after
+    /// the highest id in `root`, so nodes created later never collide with
+    /// the ones the tree was built with.
     pub fn new(
         id: DocumentId,
         path: Option<PathBuf>,
@@ -179,9 +182,9 @@ impl Document {
         Self {
             id,
             path,
+            id_gen: NodeIdAllocator::starting_after(max_node_id(&root)),
             root,
             header,
-            id_gen: NodeIdAllocator::new(),
             stats,
             open_timestamp: Instant::now(),
             undo_stack: Vec::new(),
@@ -199,4 +202,14 @@ impl Document {
     pub fn can_redo(&self) -> bool {
         !self.redo_stack.is_empty()
     }
+}
+
+/// Highest node id in the tree rooted at `folder` (including `folder` itself).
+fn max_node_id(folder: &Folder) -> NodeId {
+    folder.children.iter().fold(folder.id, |max, child| {
+        max.max(match child {
+            Node::Folder(f) => max_node_id(f),
+            other => other.id(),
+        })
+    })
 }

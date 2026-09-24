@@ -32,6 +32,14 @@ impl NodeIdAllocator {
         Self { next: 1 }
     }
 
+    /// An allocator whose first id is `last + 1`, so it never hands out an id
+    /// that is already present in a tree whose highest id is `last`.
+    pub(crate) fn starting_after(last: NodeId) -> Self {
+        Self {
+            next: last.checked_add(1).expect("NodeId overflow (> 2^64 nodes)"),
+        }
+    }
+
     pub fn alloc(&mut self) -> NodeId {
         let id = self.next;
         self.next = self
