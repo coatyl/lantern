@@ -1,6 +1,4 @@
-# Cargo and Tauri write here. Regenerable. Never commit.
-# A local ship folder once lived at target/lantern-v1.0.0/; what it held
-# is recorded in build/releases/README.md.
+# Cargo and Tauri build output
 /target/
 
 # npm workspaces (repo root and ui/)
