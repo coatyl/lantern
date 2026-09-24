@@ -360,7 +360,7 @@ fn describe_builtin(name: &str) -> &'static str {
         "Aggressive scrub" => "Minimal clean + session/affiliate/search params, fragment removal, email/handle scrubbing",
         "Full scrub" => "Aggressive scrub + path user segments, host demobilisation, shortener detection, author suffix",
         "Find duplicates" => {
-            "propose deleting exact-URL duplicates, keeping the oldest (or first-seen); \
+            "propose deleting bookmarks that point at the same page, keeping the oldest; \
              dry-run to review — a real run auto-approves deletions"
         }
         _ => "(custom)",

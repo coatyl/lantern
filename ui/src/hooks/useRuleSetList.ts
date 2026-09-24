@@ -29,7 +29,7 @@ export const BUILTIN_DESCRIPTIONS: Record<string, string> = {
   "Full scrub":
     "Everything in Aggressive scrub + user-segment paths · HTTP → HTTPS · demobilize hosts · author-suffix titles (each change requires review)",
   "Find duplicates":
-    "Propose deleting exact-URL duplicates, keeping the oldest (or first-seen). Review every deletion; the GUI never auto-applies.",
+    "Propose deleting bookmarks that point at the same page (ignoring http/https, www., #fragments, tracking parameters and parameter order), keeping the oldest. Review every deletion; the GUI never auto-applies.",
 };
 
 // ---------------------------------------------------------------------------

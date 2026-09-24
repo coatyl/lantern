@@ -37,12 +37,16 @@ which will be **the stability promise**.
   never written.
 - **CLI:** `convert <input> -o <output>` writes Netscape HTML from any
   supported input; `info` and `sanitize` accept JSON too.
-- **Find duplicates** rule set with the exact-URL duplicate pass
-  (`structure.duplicates.exact_url`): bookmarks sharing a URL after light
-  canonicalisation (lowercase host, no trailing slash) keep the oldest
-  copy; the others are proposed as destructive, unselected deletions.
-  Query-string and fragment differences are not collapsed.  A real CLI
-  `sanitize` run still auto-approves; use `--dry-run` first.
+- **Find duplicates** rule set, built on a new near-duplicate pass
+  (`structure.duplicates.near_url`): bookmarks that point at the same
+  page, even when their URLs differ in `http`/`https`, `www.`, a
+  trailing slash, a `#fragment`, tracking parameters (`utm_*`, click
+  ids) or parameter order, keep the oldest copy; the others are proposed
+  as destructive, unselected deletions whose rationale names the kept
+  bookmark and what differs.  Other query differences (`?page=2`) still
+  count.  The stricter exact-URL pass (`structure.duplicates.exact_url`)
+  stays available in the rule-set editor.  A real CLI `sanitize` run
+  still auto-approves; use `--dry-run` first.
 - **Command palette** (`Ctrl+K` / `⌘K`): open, save a copy, run pass,
   focus search, compare tabs, check dead links, merge, settings, theme.
 - **Search as you type**, with the match mode (Text / Glob / Regex) and
@@ -135,6 +139,10 @@ which will be **the stability promise**.
 
 ### Removed
 
+- `cross.dedupe`, a cruder duplicate pass (first copy wins, no
+  scheme/`www.`/tracking-parameter awareness), folded into
+  `structure.duplicates.near_url`; rule sets saved with the old id load
+  the new pass.
 - The inline `PreviewPanel` / `ChangeRow` components (superseded by the
   review surface) and the dead welcome screen (superseded by the
   library home in 0.1.0).
