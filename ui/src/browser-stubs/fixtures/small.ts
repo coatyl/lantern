@@ -41,7 +41,7 @@ export interface FixtureState {
   getTreeChildren: (tab: number, parentId: number) => TreeNodeLazy[];
   getFolderItems: (tab: number, folderId: number) => ItemPage;
   search: (tab: number, query: Record<string, unknown>) => SearchResults;
-  runPass: (tab: number, ruleSetName: string) => ChangeSetPreview;
+  runPass: (tab: number, ruleSetName: string, scope?: number | null) => ChangeSetPreview;
   applyChangeset: (
     changesetId: number,
     approvals: boolean[],
@@ -145,16 +145,16 @@ export function smallFixture(): FixtureState {
     { action_id: "open_file",  label: "Open file",  key_combo: "Ctrl+O", category: "File" },
     { action_id: "save",       label: "Save",       key_combo: "Ctrl+S", category: "File" },
     { action_id: "settings",   label: "Settings",   key_combo: "Ctrl+,", category: "App" },
+    { action_id: "command_palette", label: "Command palette", key_combo: "Ctrl+K / ⌘K", category: "Tools" },
     { action_id: "compare",    label: "Compare tabs", key_combo: "Ctrl+Shift+D", category: "Tools" },
   ];
 
   const buildInfo: BuildInfo = {
-    version: "0.1.0-rc1",
+    version: "0.2.0",
     build_flavor: "default",
     rust_version: "1.80.0",
     git_commit: null,
     license: "Apache-2.0 OR MIT",
-    adr_index_path: "private/docs/adr/",
     signed: false,
   };
 
@@ -252,11 +252,20 @@ export function smallFixture(): FixtureState {
       const q = String(query.query ?? "").toLowerCase();
       const titles = Boolean(query.search_titles ?? true);
       const urls = Boolean(query.search_urls ?? true);
+      const mode = String(query.mode ?? "substring");
+      // Mirrors the backend: an invalid pattern is an error, not "no results".
+      const pattern =
+        mode === "regex"
+          ? new RegExp(q, "i")
+          : mode === "glob"
+            ? new RegExp(q.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, "."), "i")
+            : null;
+      const matches = (text: string) => (pattern ? pattern.test(text) : text.toLowerCase().includes(q));
       const items: FolderItem[] = [];
       for (const folder of FOLDERS) {
         for (const b of folder.bookmarks) {
-          const matchTitle = titles && b.title.toLowerCase().includes(q);
-          const matchUrl = urls && b.url.toLowerCase().includes(q);
+          const matchTitle = titles && matches(b.title);
+          const matchUrl = urls && matches(b.url);
           if (q.length > 0 && (matchTitle || matchUrl)) {
             items.push(bookmarkItem(b));
           }
@@ -266,6 +275,12 @@ export function smallFixture(): FixtureState {
     },
 
     runPass(_tab, ruleSetName) {
+      // A little of everything the review surface has to render: a tracking
+      // parameter, a title fix, a folder rename, and a duplicate deletion
+      // (destructive, so it starts unapproved).
+      const eq = (text: string) => ({ tag: "equal" as const, text });
+      const rm = (text: string) => ({ tag: "removed" as const, text });
+      const add = (text: string) => ({ tag: "added" as const, text });
       const preview: ChangeSetPreview = {
         changeset_id: 1,
         rule_set_name: ruleSetName,
@@ -276,12 +291,63 @@ export function smallFixture(): FixtureState {
             field: "url",
             before: "https://github.com/example/lantern?utm_source=test",
             after: "https://github.com/example/lantern",
-            before_spans: [],
-            after_spans: [],
-            treatment_id: "strip-utm",
+            before_spans: [eq("https://github.com/example/lantern"), rm("?utm_source=test")],
+            after_spans: [eq("https://github.com/example/lantern")],
+            treatment_id: "url.qp.utm",
             rationale: "Removed tracking query parameter",
             destructive: false,
             approved: true,
+            node_title: "Lantern repo",
+            node_url: "https://github.com/example/lantern?utm_source=test",
+            location: ["Tools"],
+          },
+          {
+            index: 1,
+            node_id: 203,
+            field: "title",
+            before: "TypeScript Handbook  | TypeScript",
+            after: "TypeScript Handbook",
+            before_spans: [eq("TypeScript Handbook"), rm("  | TypeScript")],
+            after_spans: [eq("TypeScript Handbook")],
+            treatment_id: "title.site_suffix",
+            rationale: "Removed site-name suffix",
+            destructive: false,
+            approved: true,
+            node_title: "TypeScript Handbook  | TypeScript",
+            node_url: "https://www.typescriptlang.org/docs/",
+            location: ["Reference"],
+          },
+          {
+            index: 2,
+            node_id: 300,
+            field: "folder_name",
+            before: "Tools ",
+            after: "Tools",
+            before_spans: [eq("Tools"), rm(" ")],
+            after_spans: [eq("Tools"), add("")],
+            treatment_id: "folder.whitespace",
+            rationale: "Trimmed whitespace",
+            destructive: false,
+            approved: true,
+            node_title: "Tools ",
+            node_url: null,
+            location: [],
+          },
+          {
+            index: 3,
+            node_id: 204,
+            field: "node",
+            before: "",
+            after: "(deleted)",
+            before_spans: [],
+            after_spans: [],
+            treatment_id: "structure.duplicates.exact_url",
+            rationale: "Exact duplicate of \u201cGitHub\u201d in Tools",
+            destructive: true,
+            approved: false,
+            node_title: "GitHub (saved twice)",
+            node_url: "https://github.com/",
+            location: ["Reference"],
           },
         ],
       };

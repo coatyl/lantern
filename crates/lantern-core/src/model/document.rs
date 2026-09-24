@@ -8,8 +8,7 @@ use crate::model::node::{BookmarkFlag, Folder, Node};
 // DocumentStats
 // ---------------------------------------------------------------------------
 
-/// Cached counts for a document; invalidated and recomputed whenever a pass
-/// is applied or undone.
+/// Cached node counts, recomputed after every edit, undo and redo.
 #[derive(Debug, Clone, Default)]
 pub struct DocumentStats {
     pub bookmark_count: u64,
@@ -18,22 +17,22 @@ pub struct DocumentStats {
 }
 
 impl DocumentStats {
-    /// Walk `root` and count all nodes by type.
+    /// Count the nodes below `root` (not `root` itself) by type.
     pub fn from_root(root: &Folder) -> Self {
         let mut stats = Self::default();
-        Self::count_recursive(root, &mut stats);
+        stats.count(root);
         stats
     }
 
-    fn count_recursive(folder: &Folder, stats: &mut Self) {
+    fn count(&mut self, folder: &Folder) {
         for child in &folder.children {
             match child {
                 Node::Folder(f) => {
-                    stats.folder_count += 1;
-                    Self::count_recursive(f, stats);
+                    self.folder_count += 1;
+                    self.count(f);
                 }
-                Node::Bookmark(_) => stats.bookmark_count += 1,
-                Node::Separator(_) => stats.separator_count += 1,
+                Node::Bookmark(_) => self.bookmark_count += 1,
+                Node::Separator(_) => self.separator_count += 1,
             }
         }
     }
@@ -51,9 +50,8 @@ pub enum LineEnding {
     Crlf,
 }
 
-/// Metadata from the Netscape bookmark file's preamble (DOCTYPE, META, TITLE,
-/// H1). Preserved byte-for-byte on round-trip when none of the header fields
-/// were touched.
+/// Metadata from the Netscape bookmark file's preamble (META charset, TITLE),
+/// plus the BOM and line-ending conventions, reproduced on export.
 #[derive(Debug, Clone)]
 pub struct HeaderMetadata {
     pub charset: Option<String>,
@@ -76,7 +74,7 @@ impl Default for HeaderMetadata {
 }
 
 // ---------------------------------------------------------------------------
-// Undo model
+// Edits and undo history
 // ---------------------------------------------------------------------------
 
 /// Which text field of a node a change targets.
@@ -87,48 +85,49 @@ pub enum Field {
     FolderName,
 }
 
-/// The kind of a single undo/redo inverse operation.
+/// One edit on one node.
 ///
-/// Applying all inverses in an [`UndoEntry`] exactly restores the prior state.
+/// Undo entries store these as inverses: performing an entry's operations
+/// newest-first restores the state before the entry.  Performing an
+/// operation yields the operation that reverses it, which is how undo and
+/// redo build each other's entries.
 #[derive(Debug, Clone)]
 pub enum InverseKind {
-    /// Restore a single text field to its previous value.
+    /// Set a text field to `value`.
     WriteField { field: Field, value: String },
-    /// Re-insert a previously deleted node at its original position.
-    ///
-    /// The snapshot contains the full subtree so children are restored too.
+    /// Insert `snapshot` (with its whole subtree) at `index` in the folder
+    /// `parent_id`.
     RestoreNode {
-        /// Parent folder ID (0 means document root).
         parent_id: NodeId,
-        /// Child index within the parent at the time of deletion.
         index: usize,
         snapshot: Box<Node>,
     },
-    /// Remove a node that was created (inverse of create_*).
+    /// Remove the node and its subtree.
     RemoveNode,
-    /// Restore a bookmark flag to its previous value.
+    /// Set a bookmark flag to `value`.
     WriteFlag { flag: BookmarkFlag, value: bool },
-    /// Move a node back to a previous `(parent_id, index)` position.
+    /// Move the node to `to_index` in the folder `to_parent_id`.
     MoveNode {
         to_parent_id: NodeId,
         to_index: usize,
     },
 }
 
-/// The inverse of a single applied operation.
+/// An [`InverseKind`] and the node it applies to.
 #[derive(Debug, Clone)]
 pub struct InverseChange {
     pub node_id: NodeId,
     pub kind: InverseKind,
 }
 
-/// One item on the undo stack, corresponding to one apply / structural edit.
+/// One item on the undo (or redo) stack: one applied change set or one
+/// structural edit.
 #[derive(Debug, Clone)]
 pub struct UndoEntry {
-    pub timestamp: Instant,
-    /// Name of the operation that produced this entry (rule-set name, "rename",
-    /// "delete", "create", "move", …).
+    /// Name of the operation that produced this entry (rule-set name,
+    /// "rename", "delete", "create", "move").
     pub rule_set_name: String,
+    /// In the order they were recorded; replayed newest-first.
     pub inverses: Vec<InverseChange>,
 }
 
@@ -143,10 +142,9 @@ pub struct UndoEntry {
 ///
 /// # Invariants
 ///
-/// - `root` always contains a valid folder tree.
 /// - Every `NodeId` inside the tree is unique within this document.
-/// - `undo_stack` is bounded to `MAX_UNDO_ENTRIES` entries; older entries are
-///   dropped FIFO (PRD F-SAN-6).
+/// - `undo_stack` holds at most [`MAX_UNDO_ENTRIES`] entries; the oldest are
+///   dropped first.
 #[derive(Debug, Clone)]
 pub struct Document {
     pub id: DocumentId,
@@ -161,14 +159,17 @@ pub struct Document {
     /// Undo history for this document. Index 0 is the oldest entry.
     pub undo_stack: Vec<UndoEntry>,
     pub redo_stack: Vec<UndoEntry>,
-    /// True if any pass has been applied (and not fully undone) since open.
+    /// True if any edit has been made (and not fully undone) since open.
     pub dirty: bool,
 }
 
-/// Maximum number of undo entries retained per document (PRD F-SAN-6).
+/// Maximum number of undo entries retained per document.
 pub const MAX_UNDO_ENTRIES: usize = 100;
 
 impl Document {
+    /// Wrap an already-built tree.  The document's id allocator starts after
+    /// the highest id in `root`, so nodes created later never collide with
+    /// the ones the tree was built with.
     pub fn new(
         id: DocumentId,
         path: Option<PathBuf>,
@@ -179,9 +180,9 @@ impl Document {
         Self {
             id,
             path,
+            id_gen: NodeIdAllocator::starting_after(max_node_id(&root)),
             root,
             header,
-            id_gen: NodeIdAllocator::new(),
             stats,
             open_timestamp: Instant::now(),
             undo_stack: Vec::new(),
@@ -189,14 +190,14 @@ impl Document {
             dirty: false,
         }
     }
+}
 
-    /// Returns `true` if there is at least one entry to undo.
-    pub fn can_undo(&self) -> bool {
-        !self.undo_stack.is_empty()
-    }
-
-    /// Returns `true` if there is at least one entry to redo.
-    pub fn can_redo(&self) -> bool {
-        !self.redo_stack.is_empty()
-    }
+/// Highest node id in the tree rooted at `folder` (including `folder` itself).
+fn max_node_id(folder: &Folder) -> NodeId {
+    folder.children.iter().fold(folder.id, |max, child| {
+        max.max(match child {
+            Node::Folder(f) => max_node_id(f),
+            other => other.id(),
+        })
+    })
 }

@@ -5,30 +5,24 @@ A local-only Windows desktop app for exploring, sanitising, and re-exporting bro
 [![CI](https://github.com/coatyl/lantern/actions/workflows/ci.yml/badge.svg)](https://github.com/coatyl/lantern/actions/workflows/ci.yml)
 [![Licence](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](LICENSE)
 
----
+Lantern treats a bookmark export the way a text editor treats a `.txt` file. It opens the file, lets you browse and clean it, shows every proposed change for review before anything is applied, and writes a clean copy to a new file. The file you opened is never modified.
 
-## What is Lantern?
+Built with Rust, Tauri 2 and React.
 
-Lantern treats your exported `bookmarks.html` as a first-class document: the way a text editor treats `.txt`. It opens the file, lets you browse and clean it in a three-pane tree/list/detail view, previews every proposed change as a reviewable diff, and writes a clean copy to a new file. The original file is never modified.
+## Privacy
 
-It is built in Rust + Tauri 2 + React, ships as a small Windows executable, and is feature-frozen for v1.0 around bookmark hygiene: no live browser integration, no sync, no cloud.
+Bookmark exports leak more than people expect: tracking parameters, session tokens, account handles in URL paths, email addresses in titles. Lantern lets you scrub them before you share, archive or back up the file, without handing the file to anyone.
 
-## Why
-
-Lantern is **local-only by default**. No telemetry, no analytics, no crash-reporting service, no update pings exist anywhere in the codebase. The single network-touching feature (the dead-link checker) is opt-in per session, off by default, and is omitted entirely from the offline build flavour at compile time. The "local-only" promise is taken seriously enough to be enforced in CI by a symbol-check that asserts no `reqwest`/`hyper` linkage in offline builds. Full details in [`SECURITY.md`](SECURITY.md).
-
-That promise is the whole point. Bookmark exports leak more than people realise: tracking parameters, session tokens, account handles in URL paths, and embedded emails in titles. Lantern's job is to let you scrub those before you share, archive, or back up the file, without trusting the scrub to anyone else.
+Lantern is local-only. It has no telemetry, analytics, crash reporting or update checks. The only feature that touches the network is the dead-link checker, which stays off until you enable it in **Settings → General**. The offline build leaves it out at compile time, and CI fails if `reqwest` or `hyper` appear in that build's dependency graph. See [`SECURITY.md`](SECURITY.md).
 
 ## Install
 
-Download a Windows build from the [releases page](https://github.com/coatyl/lantern/releases). The latest is [v0.1.0](https://github.com/coatyl/lantern/releases/tag/v0.1.0).
-
-Each release ships these files (`<ver>` is the version, e.g. `0.1.0`):
+Download a Windows x64 build from the [releases page](https://github.com/coatyl/lantern/releases). Each release has:
 
 | File | What it is |
 |---|---|
-| `lantern-v<ver>-portable-x64.exe` | Single executable. No installer, no registry writes. xcopy-deployable to a USB stick. |
-| `lantern-v<ver>-offline-x64.exe` | Portable build with the dead-link checker compiled out: verifiably no networking code linked. |
+| `lantern-v<ver>-portable-x64.exe` | Single executable, no installer. |
+| `lantern-v<ver>-offline-x64.exe` | Portable build with the dead-link checker compiled out: no networking code linked. |
 | `lantern-v<ver>-installer-nsis-x64.exe` | Per-user NSIS installer. |
 | `lantern-v<ver>-installer-x64.msi` | MSI installer for managed deployment. |
 | `SHA256SUMS.txt` | SHA-256 of every file above. |
@@ -36,69 +30,75 @@ Each release ships these files (`<ver>` is the version, e.g. `0.1.0`):
 Check a download against `SHA256SUMS.txt`:
 
 ```powershell
-(Get-FileHash -Algorithm SHA256 .\lantern-v0.1.0-portable-x64.exe).Hash
+(Get-FileHash -Algorithm SHA256 .\lantern-v0.2.0-portable-x64.exe).Hash
 ```
 
-**Release builds are currently unsigned.** Windows SmartScreen will warn on first run, and `Settings → About` reports `unsigned`. Signing turns on once an Authenticode certificate is in place; after that, `Get-AuthenticodeSignature .\lantern.exe` should report `Status: Valid`. MSIX packaging is deferred to a later release.
+Settings and rule sets live in `%APPDATA%\Lantern`. To keep them beside a portable copy instead, put an empty `settings.toml` next to the executable.
 
-### Build from source
+**Releases are not code-signed yet.** SmartScreen warns on first run, and **Settings → About** reports `unsigned`.
 
-Prerequisites: [Rust stable](https://rustup.rs/) (toolchain pinned in `rust-toolchain.toml`), [Node.js 20+](https://nodejs.org/), Microsoft C++ Build Tools, and WebView2 (pre-installed on Windows 11).
+## Use
+
+1. **Open** a file with Ctrl+O or from the library home, which lists recent files. Lantern reads Netscape bookmark HTML (the export format of Chrome, Edge, Firefox and Safari) and Chrome / Chromium `Bookmarks` JSON straight from a browser profile.
+2. **Browse** the folder tree, the list of the focused folder, and the details of the selected item. Several files can be open in tabs.
+3. **Run a rule set** from the detail pane on the whole document or just the focused folder. Built-in sets: *Minimal clean*, *Aggressive scrub*, *Full scrub*, and *Find duplicates*, which proposes deleting exact-URL duplicates. The rule-set editor lets you build your own.
+4. **Review** the proposed changes. They take over the main area: one card per bookmark or folder with its path and a before/after diff, filters by kind of change, and bulk selection. Destructive changes, including deletions, start unselected. Ctrl+Enter applies, Escape discards, and Ctrl+Z undoes an apply.
+5. **Export** a clean copy to a new HTML file. Lantern refuses to overwrite the file it opened.
+
+**Tools** in the title bar compare two tabs, merge documents, and run the dead-link checker once it is enabled. Ctrl+K opens a command palette, and **Settings → Keyboard** lists every shortcut.
+
+## CLI
+
+`lantern-cli` runs the same rule sets without the GUI. It is not in the release downloads; build it from source (below) with `cargo build --release -p lantern-cli`.
+
+```powershell
+# Counts and depth of a bookmark file (HTML or Chrome JSON).
+lantern-cli info bookmarks.html
+
+# Chrome Bookmarks JSON (or Netscape HTML) to Netscape HTML.
+lantern-cli convert Bookmarks -o bookmarks.html
+
+# Apply a built-in rule set; writes a cleaned copy.
+lantern-cli sanitize bookmarks.html --rule-set full-scrub --output cleaned.html
+
+# Show what a rule set would change, without writing anything.
+lantern-cli sanitize bookmarks.html --rule-set find-duplicates --dry-run
+
+# List the built-in rule sets.
+lantern-cli rule-sets
+```
+
+Without `--output`, `sanitize` writes `<input>.clean.html`. `--rule-set-file` takes a `.lantern-rules.toml` instead of a built-in name. `lantern-cli --help` lists every flag.
+
+Without `--dry-run`, `sanitize` **applies every proposed change**, including the deletions proposed by `find-duplicates`. Run it with `--dry-run` first. The GUI never auto-applies deletions.
+
+## Build from source
+
+You need [Rust stable](https://rustup.rs/) (`rust-toolchain.toml` selects it), Node.js 20 (see `.nvmrc`), the Microsoft C++ Build Tools, and WebView2, which ships with Windows 11.
 
 ```powershell
 git clone https://github.com/coatyl/lantern.git
 cd lantern
-npm install
+npm ci
 npm run build
 ```
 
-The build produces `target/release/lantern.exe` plus an NSIS installer when `bundle.active = true`. `target/` is gitignored; how releases are built and named, and the hashes of the older 2026-05-06 local builds, live in [`build/releases/README.md`](build/releases/README.md). For the offline-only flavour:
+That builds `target/release/lantern.exe` and an NSIS installer under `target/release/bundle/nsis/`. The release flavours are built the same way with the configs in `crates/lantern-app/`. For example, the offline flavour:
 
 ```powershell
-cargo build --release -p lantern-app --no-default-features --locked
+npx tauri build --config crates/lantern-app/tauri.offline.conf.json -- --no-default-features
 ```
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full developer setup, common commands, and project tour.
-
-## Use
-
-1. **Open** a `bookmarks.html` file (Ctrl+O); every major browser exports to this format.
-2. **Browse** the folder hierarchy in the tree pane; the list pane shows the contents of the focused folder.
-3. **Sanitise** a selection, a folder, or the whole document. Lantern proposes changes; you review them in a diff before anything is applied.
-4. **Apply** the subset you approve. Undo restores the previous state byte-for-byte.
-5. **Export** a clean copy to a new file. The original file is never written.
-6. *(Opt-in)* run the dead-link checker over a selection. Off by default; clearly labelled when on.
-
-The full keyboard map lives in `Settings → Keyboard`. The app is operable end-to-end from the keyboard alone (US-020).
-
-## CLI
-
-The `lantern-cli` crate builds a headless `lantern` binary that runs the same sanitisation passes from the command line. Useful for scripting, CI scrubs, or running on a machine without a desktop.
-
-```powershell
-# Print structural information about a bookmark file (counts, depth).
-lantern info bookmarks.html
-
-# Apply a built-in rule set and write the cleaned copy to a new file.
-lantern sanitize bookmarks.html --rule-set full-scrub --output cleaned.html
-
-# Preview the changes a rule set would make, without writing anything.
-lantern sanitize bookmarks.html --rule-set full-scrub --dry-run
-
-# List the built-in rule sets (minimal-clean, aggressive-scrub, full-scrub).
-lantern rule-sets
-```
-
-`lantern --help` lists every subcommand and flag. The CLI shares the same core APIs as the desktop app, so a `sanitize` run from either produces identical output for the same rule set + input.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) covers development setup, tests and the project layout.
 
 ## Licence
 
-Lantern is dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at your option. See [`LICENSE`](LICENSE) for the top-level pointer. The chosen identifier is `Apache-2.0 OR MIT` (the standard Rust-ecosystem default), and it matches the literal reported by `Settings → About`.
+Dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at your option (`Apache-2.0 OR MIT`; see [`LICENSE`](LICENSE)).
 
 ## Security
 
-Vulnerability reports go through [`SECURITY.md`](SECURITY.md). Please do not file security reports as public GitHub issues.
+Report vulnerabilities as described in [`SECURITY.md`](SECURITY.md), not in public issues.
 
 ## Contributing
 
-Lantern does not currently accept external pull requests. This is a pre-1.0 personal project under review for public release. Once the repo is flipped public, contributions follow the [`CONTRIBUTING.md`](CONTRIBUTING.md) guide: setup, common tasks, conventional commits, and PR template.
+Issues and pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers setup, the checks to run before a PR, and conventions. Security reports go through [`SECURITY.md`](SECURITY.md), not public issues.

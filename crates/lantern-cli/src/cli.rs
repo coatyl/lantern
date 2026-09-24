@@ -1,9 +1,10 @@
-//! Command-tree definitions and dispatch for the `lantern` binary.
+//! Command-tree definitions and dispatch for the `lantern-cli` binary.
 //!
-//! The CLI is intentionally minimal for v0.1.0: three subcommands that
-//! cover the headless path the GUI exercises (parse → run rule set →
-//! emit).  Custom rule-set discovery from disk and structural commands
-//! such as `merge` / `dedupe` / `diff` are post-v0.1.0.
+//! The CLI is intentionally minimal for v0.1.0: four subcommands that
+//! cover the headless path the GUI exercises (parse → convert / run
+//! rule set → emit).  Custom rule-set discovery from disk and
+//! structural commands such as `merge` / `dedupe` / `diff` are
+//! post-v0.1.0.
 //!
 //! The public entry point is [`run`].  It accepts an `args` iterator so
 //! integration tests and embedders can drive the CLI without going
@@ -16,25 +17,28 @@ use anyhow::{anyhow, Context, Result};
 use clap::{Args, Parser, Subcommand};
 
 use lantern_core::emit::EmitOptions;
+use lantern_core::model::ids::NodeId;
 use lantern_core::model::node::{Folder, Node};
 use lantern_core::sanitize::pass::{run_pass, PassTarget, RuleSet};
-use lantern_core::sanitize::treatment::ChangeKind;
-use lantern_io::rulestore::{builtin_rule_sets, is_builtin};
+use lantern_core::sanitize::treatment::{Change, ChangeKind};
+use lantern_io::rulestore::{slugify, BUILTIN_RULE_SETS};
 use lantern_io::{build_ruleset, read_bookmark_file, read_ruleset, write_bookmark_file};
 
 // ---------------------------------------------------------------------------
 // Command tree
 // ---------------------------------------------------------------------------
 
-/// Top-level CLI for the `lantern` binary.
+/// Top-level CLI for the `lantern-cli` binary.
 #[derive(Debug, Parser)]
 #[command(
-    name = "lantern",
+    name = "lantern-cli",
     version,
-    about = "Sanitise and inspect Netscape bookmark files from the shell.",
+    about = "Sanitise, inspect, and convert bookmark files from the shell.",
     long_about = "Lantern's headless companion to the Tauri GUI.  \
                   Reuses lantern-core and lantern-io so the rule set + \
-                  sanitization logic gets a second consumer."
+                  sanitization logic gets a second consumer.  Reads \
+                  Netscape / Firefox HTML and Chrome Bookmarks JSON; \
+                  writes Netscape HTML only."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -44,9 +48,15 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Apply a rule set to a bookmark file.
+    ///
+    /// Without `--dry-run` the CLI auto-approves every proposed change
+    /// (including destructive deletions such as Find duplicates) and
+    /// writes the result.  Inspect first with `--dry-run`.
     Sanitize(SanitizeArgs),
     /// Print structural information about a bookmark file.
     Info(InfoArgs),
+    /// Convert a bookmark file to Netscape HTML.
+    Convert(ConvertArgs),
     /// List the built-in rule sets.
     #[command(name = "rule-sets")]
     RuleSets(RuleSetsArgs),
@@ -54,7 +64,7 @@ enum Command {
 
 #[derive(Debug, Args)]
 struct SanitizeArgs {
-    /// Path to a Netscape bookmark HTML file.
+    /// Path to a Netscape HTML or Chrome Bookmarks JSON file.
     input: PathBuf,
 
     /// Output file (defaults to `<input>.clean.html`).
@@ -63,8 +73,9 @@ struct SanitizeArgs {
 
     /// Built-in rule set to apply.  Default: `minimal-clean`.
     ///
-    /// Accepts the slug (`minimal-clean`) or the display name
-    /// (`Minimal clean`).  Mutually exclusive with `--rule-set-file`.
+    /// Accepts the slug (`minimal-clean`, `find-duplicates`) or the
+    /// display name (`Minimal clean`, `Find duplicates`).  Mutually
+    /// exclusive with `--rule-set-file`.
     #[arg(long, value_name = "NAME", conflicts_with = "rule_set_file")]
     rule_set: Option<String>,
 
@@ -73,14 +84,29 @@ struct SanitizeArgs {
     rule_set_file: Option<PathBuf>,
 
     /// Print a summary of proposed changes without writing the output.
+    ///
+    /// A real (non-dry-run) sanitize auto-approves every proposed change,
+    /// including destructive deletions.  Always inspect Find duplicates
+    /// with `--dry-run` before applying.
     #[arg(long)]
     dry_run: bool,
 }
 
 #[derive(Debug, Args)]
 struct InfoArgs {
-    /// Path to a Netscape bookmark HTML file.
+    /// Path to a Netscape HTML or Chrome Bookmarks JSON file.
     input: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct ConvertArgs {
+    /// Path to a Netscape HTML or Chrome Bookmarks JSON file.
+    input: PathBuf,
+
+    /// Destination Netscape HTML path. Required so the source is never
+    /// overwritten (Chrome profile `Bookmarks` files stay read-only).
+    #[arg(short, long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -108,6 +134,7 @@ where
     match cli.command {
         Command::Sanitize(a) => run_sanitize(a),
         Command::Info(a) => run_info(a),
+        Command::Convert(a) => run_convert(a),
         Command::RuleSets(a) => run_rule_sets(a),
     }
 }
@@ -130,7 +157,15 @@ fn run_sanitize(args: SanitizeArgs) -> Result<()> {
     let (set_field, delete_node, set_flag) = count_kinds(&cs.changes);
 
     if args.dry_run {
-        print_change_summary(&rule_set.name, total, set_field, delete_node, set_flag);
+        print_change_summary(
+            &rule_set.name,
+            total,
+            set_field,
+            delete_node,
+            set_flag,
+            &doc.root,
+            &cs.changes,
+        );
         return Ok(());
     }
 
@@ -178,13 +213,55 @@ fn print_change_summary(
     set_field: usize,
     delete_node: usize,
     set_flag: usize,
+    root: &Folder,
+    changes: &[Change],
 ) {
     println!("dry run: rule set \"{rule_set_name}\"");
     println!(
         "  proposed changes: {total} (field edits: {set_field}, \
          deletions: {delete_node}, flag updates: {set_flag})"
     );
+    if delete_node > 0 {
+        println!("  proposed deletions (destructive; not applied in dry-run):");
+        for change in changes {
+            if !matches!(change.kind, ChangeKind::DeleteNode) {
+                continue;
+            }
+            match find_bookmark_preview(root, change.node_id) {
+                Some((title, url)) => {
+                    println!("    - [{title}] {url}");
+                    println!("      {}", change.rationale);
+                }
+                None => {
+                    println!("    - node {} ({})", change.node_id, change.rationale);
+                }
+            }
+        }
+    }
+    println!(
+        "  note: without --dry-run the CLI auto-approves every proposed \
+         change, including deletions"
+    );
     println!("  no output file written");
+}
+
+/// Title + URL for a dry-run deletion line.  Folders and missing IDs
+/// return `None` so the caller can fall back to the node id.
+fn find_bookmark_preview(folder: &Folder, node_id: NodeId) -> Option<(String, String)> {
+    for child in &folder.children {
+        match child {
+            Node::Bookmark(b) if b.id == node_id => {
+                return Some((b.title.clone(), b.url.as_str().to_owned()));
+            }
+            Node::Folder(f) => {
+                if let Some(found) = find_bookmark_preview(f, node_id) {
+                    return Some(found);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn default_output_path(input: &Path) -> PathBuf {
@@ -240,6 +317,21 @@ fn max_depth(root: &Folder) -> u32 {
 }
 
 // ---------------------------------------------------------------------------
+// `convert`
+// ---------------------------------------------------------------------------
+
+fn run_convert(args: ConvertArgs) -> Result<()> {
+    let doc = read_bookmark_file(&args.input)
+        .with_context(|| format!("reading {}", args.input.display()))?;
+
+    write_bookmark_file(&args.output, &doc, &EmitOptions::default())
+        .with_context(|| format!("writing {}", args.output.display()))?;
+
+    println!("wrote {}", args.output.display());
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // `rule-sets`
 // ---------------------------------------------------------------------------
 
@@ -248,7 +340,7 @@ fn run_rule_sets(_args: RuleSetsArgs) -> Result<()> {
     // so future versions can add `--list-user <DIR>` without breaking the
     // command surface.
     println!("Built-in rule sets:");
-    for (name, treatment_ids) in builtin_rule_sets() {
+    for &(name, treatment_ids) in BUILTIN_RULE_SETS {
         let description = describe_builtin(name);
         println!(
             "  {:<18} {} ({} treatment{})",
@@ -267,6 +359,10 @@ fn describe_builtin(name: &str) -> &'static str {
         "Minimal clean" => "strip common UTM / click-id / tracking-fragment params, normalise whitespace",
         "Aggressive scrub" => "Minimal clean + session/affiliate/search params, fragment removal, email/handle scrubbing",
         "Full scrub" => "Aggressive scrub + path user segments, host demobilisation, shortener detection, author suffix",
+        "Find duplicates" => {
+            "propose deleting exact-URL duplicates, keeping the oldest (or first-seen); \
+             dry-run to review — a real run auto-approves deletions"
+        }
         _ => "(custom)",
     }
 }
@@ -288,11 +384,11 @@ fn resolve_rule_set(name: Option<&str>, file: Option<&Path>) -> Result<RuleSet> 
     }
 
     let requested = name.unwrap_or("Minimal clean");
-    let canonical = canonicalise_builtin_name(requested).ok_or_else(|| {
+    let (canonical, ids) = find_builtin(requested).ok_or_else(|| {
         anyhow!(
             "unknown rule set \"{requested}\"; pass --rule-set-file <PATH> for custom sets, \
              or use one of: {}",
-            builtin_rule_sets()
+            BUILTIN_RULE_SETS
                 .iter()
                 .map(|(n, _)| *n)
                 .collect::<Vec<_>>()
@@ -301,39 +397,21 @@ fn resolve_rule_set(name: Option<&str>, file: Option<&Path>) -> Result<RuleSet> 
     })?;
 
     // Build directly from the in-memory catalogue rather than touching disk.
-    let (_, ids) = builtin_rule_sets()
-        .into_iter()
-        .find(|(n, _)| *n == canonical)
-        .expect("canonicalise_builtin_name only returns names from builtin_rule_sets()");
-
-    build_ruleset(canonical.to_string(), ids)
+    build_ruleset(canonical, ids)
         .with_context(|| format!("building built-in rule set \"{canonical}\""))
 }
 
 /// Match a user-supplied rule-set name against the built-in catalogue.
 ///
-/// Accepts both the display name (`"Minimal clean"`) and the slug
-/// (`"minimal-clean"`), case-insensitively.  Returns the canonical
-/// display name when matched, or `None` if no built-in matches.
-fn canonicalise_builtin_name(input: &str) -> Option<&'static str> {
-    let trimmed = input.trim();
-    if is_builtin(trimmed) {
-        for (name, _) in builtin_rule_sets() {
-            if *name == *trimmed {
-                return Some(name);
-            }
-        }
-    }
-    let normalised = trimmed.to_ascii_lowercase();
-    for (name, _) in builtin_rule_sets() {
-        if name.eq_ignore_ascii_case(trimmed) {
-            return Some(name);
-        }
-        if lantern_io::rulestore::slugify(name) == normalised {
-            return Some(name);
-        }
-    }
-    None
+/// Accepts the display name (`"Minimal clean"`) case-insensitively, or the
+/// slug (`"minimal-clean"`).  Returns the catalogue entry when matched.
+fn find_builtin(input: &str) -> Option<(&'static str, &'static [&'static str])> {
+    let input = input.trim();
+    let lowered = input.to_ascii_lowercase();
+    BUILTIN_RULE_SETS
+        .iter()
+        .copied()
+        .find(|(name, _)| name.eq_ignore_ascii_case(input) || slugify(name) == lowered)
 }
 
 // ---------------------------------------------------------------------------
@@ -351,24 +429,19 @@ mod tests {
     }
 
     #[test]
-    fn canonicalise_accepts_display_name_and_slug() {
-        assert_eq!(
-            canonicalise_builtin_name("Minimal clean"),
-            Some("Minimal clean")
-        );
-        assert_eq!(
-            canonicalise_builtin_name("minimal-clean"),
-            Some("Minimal clean")
-        );
-        assert_eq!(
-            canonicalise_builtin_name("MINIMAL CLEAN"),
-            Some("Minimal clean")
-        );
-        assert_eq!(
-            canonicalise_builtin_name("Aggressive scrub"),
-            Some("Aggressive scrub")
-        );
-        assert_eq!(canonicalise_builtin_name("full-scrub"), Some("Full scrub"));
-        assert_eq!(canonicalise_builtin_name("nope"), None);
+    fn find_builtin_accepts_display_name_and_slug() {
+        for (input, expected) in [
+            ("Minimal clean", Some("Minimal clean")),
+            ("minimal-clean", Some("Minimal clean")),
+            ("MINIMAL CLEAN", Some("Minimal clean")),
+            (" Minimal-Clean ", Some("Minimal clean")),
+            ("Aggressive scrub", Some("Aggressive scrub")),
+            ("full-scrub", Some("Full scrub")),
+            ("find-duplicates", Some("Find duplicates")),
+            ("Find duplicates", Some("Find duplicates")),
+            ("nope", None),
+        ] {
+            assert_eq!(find_builtin(input).map(|(n, _)| n), expected, "{input:?}");
+        }
     }
 }

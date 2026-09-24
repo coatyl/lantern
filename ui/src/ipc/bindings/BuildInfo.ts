@@ -13,25 +13,19 @@ version: string,
  */
 build_flavor: string, 
 /**
- * Compile-time Rust version, captured by `build.rs`.
+ * `rustc -V` output captured by `build.rs`.
  */
 rust_version: string, 
 /**
- * Reserved for future use; always `None` until a git stamp is wired in.
+ * Always `None`: no git stamp is embedded yet.
  */
 git_commit: string | null, 
 /**
- * SPDX-style license string (matches the workspace `LICENSE` file).
+ * SPDX license expression.
  */
 license: string, 
 /**
- * Informational reference path to the ADR index.
- */
-adr_index_path: string, 
-/**
- * `true` if the binary was Authenticode-signed at build time.  Driven
- * by the `LANTERN_SIGNED=1` environment variable read by the build
- * script, which the CI sign-windows job sets after `signtool` succeeds.
- * Local dev builds always report `false`.
+ * Whether the Windows signing job signed this binary (`LANTERN_SIGNED`
+ * at build time).  Always `false` for local builds.
  */
 signed: boolean, };

@@ -91,7 +91,7 @@ fn write_header(buf: &mut String, doc: &Document, le: &str) {
     write!(
         buf,
         r#"<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset={}">"#,
-        charset
+        escape_attr(charset)
     )
     .unwrap();
     buf.push_str(le);
@@ -222,7 +222,7 @@ fn write_h3_attrs(buf: &mut String, f: &crate::model::node::Folder) {
 ///
 /// Canonical order: HREF, ADD_DATE, LAST_MODIFIED, ICON, then unknown attrs.
 fn write_a_attrs(buf: &mut String, b: &crate::model::node::Bookmark) {
-    const KNOWN: &[&str] = &["href", "add_date", "last_modified", "icon", "icon_uri"];
+    const KNOWN: &[&str] = &["href", "add_date", "last_modified", "icon"];
 
     write!(buf, r#" HREF="{}""#, escape_attr(b.url.as_str())).unwrap();
     if let Some(ts) = b.add_date {
@@ -382,6 +382,30 @@ mod tests {
                 line
             );
         }
+    }
+
+    #[test]
+    fn unknown_attributes_round_trip_including_icon_uri() {
+        let html = br#"<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+    <DT><A HREF="https://a.example/" ICON_URI="https://a.example/favicon.ico" TAGS="x,y">A</A>
+</DL><p>
+"#;
+        let emitted = emit(&parse(html).unwrap(), &EmitOptions::default());
+        let text = std::str::from_utf8(&emitted).unwrap();
+        assert!(
+            text.contains(r#"ICON_URI="https://a.example/favicon.ico" TAGS="x,y""#),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn header_charset_is_escaped() {
+        let mut doc = parse(MINIMAL).unwrap();
+        doc.header.charset = Some(r#"x"><b>"#.into());
+        let emitted = emit(&doc, &EmitOptions::default());
+        let text = std::str::from_utf8(&emitted).unwrap();
+        assert!(text.contains("charset=x&quot;&gt;&lt;b&gt;\">"), "{text}");
     }
 
     #[test]

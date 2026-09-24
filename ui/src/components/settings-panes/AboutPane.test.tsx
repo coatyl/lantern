@@ -26,7 +26,6 @@ const sample: BuildInfo = {
   rust_version: "1.82.0",
   git_commit: null,
   license: "MIT",
-  adr_index_path: "private/docs/adr/README.md",
   signed: false,
 };
 
@@ -47,17 +46,15 @@ describe("AboutPane", () => {
     expect(screen.getByText("MIT")).toBeInTheDocument();
   });
 
-  it("renders the SBOM link", async () => {
+  it("links to the project's releases", async () => {
     vi.mocked(ipc.getBuildInfo).mockResolvedValue(sample);
 
     renderPane();
 
-    const link = await screen.findByRole("link", {
-      name: /software bill of materials/i,
-    });
+    const link = await screen.findByRole("link", { name: /releases and source code/i });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(link.getAttribute("href")).toMatch(/releases$/);
+    expect(link).toHaveAttribute("href", "https://github.com/coatyl/lantern/releases");
   });
 
   it("shows 'unsigned' for an unsigned build", async () => {

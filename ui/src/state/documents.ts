@@ -17,6 +17,7 @@ import type {
   SearchMode,
   FolderItem,
   FilterSpec,
+  ChangeSetPreview,
 } from "../ipc/types";
 import { ipc } from "../ipc";
 
@@ -40,6 +41,28 @@ export function isFilterActive(filter: FilterSpec | null): boolean {
 export interface FolderCrumb {
   id: number;
   name: string;
+}
+
+/**
+ * A change set waiting for the user's decision.  While one is open for the
+ * active tab the workspace swaps the list + detail panes for the review
+ * surface.
+ */
+export interface PendingReview {
+  tabId: TabId;
+  preview: ChangeSetPreview;
+  /** Human label for what the pass covered, e.g. "Whole document". */
+  scopeLabel: string;
+}
+
+export interface PendingClose {
+  tabIds: TabId[];
+  closeWindow: boolean;
+}
+
+async function closeAppWindow(): Promise<void> {
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  await getCurrentWindow().destroy();
 }
 
 /** Default page size for the list pane. */
@@ -120,6 +143,24 @@ interface DocumentsState {
   /** Active filter applied to both browsing and searching. `null` = no filter. */
   filter: FilterSpec | null;
 
+  // ── Closing tabs that hold unsaved edits ─────────────────────────────────
+  /** Tabs waiting on the user's "save / discard / cancel" answer. */
+  pendingClose: PendingClose | null;
+  /**
+   * Close tabs, asking first when any of them holds edits (Lantern keeps
+   * edits in memory until a copy is saved).  With `closeWindow`, the app
+   * window closes afterwards.
+   */
+  requestClose: (tabIds: TabId[], opts?: { closeWindow?: boolean }) => Promise<void>;
+  /** Close the pending tabs (and window) without asking again. */
+  confirmClose: () => Promise<void>;
+  cancelClose: () => void;
+
+  // ── Review (proposed changes awaiting approval) ─────────────────────────
+  review: PendingReview | null;
+  openReview: (review: PendingReview) => void;
+  closeReview: () => void;
+
   // ── Derived helpers (not stored; computed from folderStack) ──────────────
   /** ID of the currently displayed folder (0 = document root). */
   activeFolderId: () => number;
@@ -179,6 +220,13 @@ interface DocumentsState {
   setFilter: (filter: FilterSpec | null) => Promise<void>;
 }
 
+/**
+ * Bumped by every search and by `clearSearch`, so a slow response that
+ * arrives after the user typed more (or cleared the box) is dropped instead
+ * of overwriting newer results.
+ */
+let searchSeq = 0;
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -201,6 +249,33 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
   isSearchMode: false,
   searchResults: null,
   filter: null,
+  review: null,
+  pendingClose: null,
+
+  requestClose: async (tabIds, opts = {}) => {
+    const closeWindow = opts.closeWindow ?? false;
+    set({ pendingClose: { tabIds, closeWindow } });
+    // Nothing to lose: close straight away.
+    if (!get().tabs.some((t) => tabIds.includes(t.id) && t.dirty)) {
+      await get().confirmClose();
+    }
+  },
+
+  confirmClose: async () => {
+    const pending = get().pendingClose;
+    set({ pendingClose: null });
+    if (!pending) return;
+    for (const id of pending.tabIds) {
+      await ipc.closeTab(id);
+    }
+    await get().refreshTabs();
+    if (pending.closeWindow) await closeAppWindow();
+  },
+
+  cancelClose: () => set({ pendingClose: null }),
+
+  openReview: (review) => set({ review }),
+  closeReview: () => set({ review: null }),
 
   activeFolderId: () => get().folderStack.at(-1)?.id ?? 0,
 
@@ -240,6 +315,10 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
   refreshTabs: async () => {
     const tabs = await ipc.listTabs();
     set({ tabs });
+    const { review } = get();
+    if (review && !tabs.find((t) => t.id === review.tabId)) {
+      set({ review: null });
+    }
     const { activeTab } = get();
     if (activeTab !== null && !tabs.find((t) => t.id === activeTab)) {
       set({
@@ -448,6 +527,7 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
   runSearch: async (query, searchTitles, searchUrls, mode = "substring") => {
     const { activeTab, filter } = get();
     if (activeTab === null) return;
+    const seq = ++searchSeq;
     const results = await ipc.search(activeTab, {
       query,
       search_titles: searchTitles,
@@ -455,10 +535,12 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
       mode,
       filter: filter ?? undefined,
     });
+    if (seq !== searchSeq) return;
     set({ isSearchMode: true, searchResults: results, selectedItem: null });
   },
 
   clearSearch: () => {
+    searchSeq += 1;
     set({ isSearchMode: false, searchResults: null, selectedItem: null });
   },
 

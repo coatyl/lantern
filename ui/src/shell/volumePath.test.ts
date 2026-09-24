@@ -8,6 +8,7 @@ describe("parseVolumePath", () => {
       path: "/home/ada/bookmarks/chrome.html",
       name: "chrome.html",
       directory: "home/ada/bookmarks",
+      format: "html",
     });
   });
 
@@ -16,6 +17,7 @@ describe("parseVolumePath", () => {
       path: "C:\\Users\\ada\\Documents\\firefox.html",
       name: "firefox.html",
       directory: "C:/Users/ada/Documents",
+      format: "html",
     });
   });
 
@@ -24,6 +26,11 @@ describe("parseVolumePath", () => {
       path: "bookmarks.html",
       name: "bookmarks.html",
       directory: "",
+      format: "html",
     });
+  });
+
+  it("recognises Chrome's extensionless Bookmarks file", () => {
+    expect(parseVolumePath("/home/ada/.config/chromium/Default/Bookmarks").format).toBe("chrome");
   });
 });

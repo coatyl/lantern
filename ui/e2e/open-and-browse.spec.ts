@@ -21,23 +21,24 @@ test("US-001: workspace mounts with the fixture document", async ({ page }) => {
   // The three-pane layout uses role="tabpanel" on the main region.
   await expect(page.getByRole("tabpanel")).toBeVisible();
 
-  // Status bar (role="contentinfo" footer) reports a bookmark count from the
-  // fixture. Scoped to the footer so it doesn't collide with the tree's
-  // "Bookmarks" root entry.
+  // The status bar (role="contentinfo") reports the fixture's bookmark count.
   await expect(page.getByRole("contentinfo").getByText(/bookmarks/i)).toBeVisible();
 });
 
-test("US-002: tree pane lists folders and clicking one updates the list", async ({ page }) => {
+test("US-002: the folder tree is keyboard navigable and drives the list", async ({ page }) => {
   await page.goto("/");
 
-  // Folder names appear as buttons in the tree pane. Scope to the tabpanel
-  // so "Tools" doesn't collide with the title-bar Tools menu.
-  const workspace = page.getByRole("tabpanel");
-  await expect(workspace.getByRole("button", { name: "News" })).toBeVisible();
-  await expect(workspace.getByRole("button", { name: "Reference" })).toBeVisible();
-  await expect(workspace.getByRole("button", { name: "Tools" })).toBeVisible();
+  const tree = page.getByRole("tree", { name: "Folders" });
+  for (const name of ["News", "Reference", "Tools"]) {
+    await expect(tree.getByRole("treeitem", { name })).toBeVisible();
+  }
 
-  // Clicking the "News" entry in the tree should reveal its bookmarks.
-  await workspace.getByRole("button", { name: "News" }).click();
+  await tree.getByRole("treeitem", { name: "News" }).click();
   await expect(page.getByText("Hacker News")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("News");
+
+  // Arrow down to the next folder and open it with Enter.
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("MDN Web Docs")).toBeVisible();
 });

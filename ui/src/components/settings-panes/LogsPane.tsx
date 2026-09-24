@@ -14,8 +14,8 @@ import { useT } from "../../i18n/I18nProvider";
 
 function levelClass(level: LogLevel): string {
   switch (level) {
-    case "error": return "text-red-400";
-    case "warn":  return "text-amber-400";
+    case "error": return "text-danger";
+    case "warn":  return "text-warn";
     case "info":
     default:      return "text-neutral-300";
   }
@@ -80,6 +80,7 @@ export function LogsPane() {
         <EmptyState
           icon={<EmptyDocumentIcon />}
           title={t("empty.logs")}
+          description={t("empty.logs.description")}
           ariaLabel={t("empty.logs")}
         />
       ) : (

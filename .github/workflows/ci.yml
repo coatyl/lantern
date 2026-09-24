@@ -9,32 +9,19 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
-# Restricted GITHUB_TOKEN is the account default (contents + metadata +
-# packages only). Any job that calls the Pulls API without declaring
-# `pull-requests: read` fails with "Resource not accessible by
-# integration" — that is why the old `dorny/paths-filter` `changes` job
-# went red on every PR, and why the same 403 shows up on every other
-# repo that inherited this default. Contents is enough for git-based
-# path filtering below; pull-requests is granted so a future API
-# consumer does not silently regress.
+# Read-only token. Nothing here calls the Pulls API (path filtering uses
+# `git diff`); pull-requests: read is granted so a future caller does not 403.
 permissions:
   contents: read
   pull-requests: read
-
-# Note on platform coverage: ARM64 Windows is not yet exercised in CI.
-# It will be added once GitHub-hosted Windows ARM64 runners reach
-# general availability; the cost of self-hosted ARM Windows runners is
-# not justified at v0.0.9's scale.  See private/docs/03-technical-design.md
-# §12.2.
 
 jobs:
   rust-fmt-clippy:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
@@ -44,8 +31,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
-        with: { toolchain: stable }
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --locked
 
@@ -59,11 +45,8 @@ jobs:
       - run: npm run lint:ts
       - run: npm run test:ui
 
-  # Added v0.1.0: Playwright E2E specs driving the Vite dev server with
-  # the browser-stubs serving a synthetic document.  Marked
-  # continue-on-error: true because the framework is in place but
-  # flake-tolerance hardening is a follow-up, same posture as the
-  # reproducible-build-check job below.
+  # Playwright against the Vite dev server with the browser stubs; no Tauri
+  # runtime. Non-blocking until the suite has a flake-free track record.
   ui-e2e:
     needs: changes
     if: needs.changes.outputs.non-md == 'true'
@@ -77,15 +60,12 @@ jobs:
       - run: npx -w lantern-ui playwright install --with-deps chromium
       - run: npm run e2e
 
-  # Shipped in v0.0.6: proves the offline-only build flavor links no
-  # networking stack at all.  Builds with --no-default-features and
-  # asserts `cargo tree` contains neither reqwest nor hyper.
+  # The offline flavour must link no networking stack.
   offline-build-symbol-check:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
-        with: { toolchain: stable }
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build offline-only flavor
         run: cargo build --release -p lantern-app --no-default-features --locked
@@ -97,23 +77,38 @@ jobs:
           if ($tree -match '\bhyper\b')   { Write-Error "hyper leaked into offline build";   exit 1 }
           Write-Host "Offline build clean: no reqwest, no hyper."
 
-  # Detects whether the PR (or push) touches anything outside markdown.
-  # Implemented with `git diff` rather than `dorny/paths-filter`, which
-  # calls GET /pulls/{n}/files and 403s under the restricted default
-  # GITHUB_TOKEN (see the workflow-level `permissions` comment).
+  # `non-md`: the push/PR touches something other than markdown, so the slow
+  # build jobs are worth running. `can-sign`: the code-signing certificate
+  # secret is available (never on fork PRs).
   changes:
     runs-on: ubuntu-latest
     outputs:
       non-md: ${{ steps.filter.outputs.non-md }}
+      can-sign: ${{ steps.filter.outputs.can-sign }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - id: filter
-        name: Detect non-markdown changes
+      # Windows and macOS resolve paths case-insensitively and TypeScript
+      # imports drop the extension, so `commandPalette.ts` next to
+      # `CommandPalette.tsx` breaks the Windows build while Linux passes.
+      - name: Reject paths that differ only in case
         shell: bash
         run: |
+          clashes=$(git ls-files | sed -E 's/\.(tsx?|jsx?|mjs|cjs)$//' | tr '[:upper:]' '[:lower:]' | sort | uniq -d)
+          if [ -n "$clashes" ]; then
+            echo "::error::these paths collide on case-insensitive filesystems:"
+            echo "$clashes"
+            exit 1
+          fi
+      - id: filter
+        name: Detect non-markdown changes and signing availability
+        shell: bash
+        env:
+          HAS_CERT: ${{ secrets.LANTERN_CODESIGN_PFX_BASE64 != '' }}
+        run: |
           set -euo pipefail
+          echo "can-sign=${HAS_CERT}" >> "$GITHUB_OUTPUT"
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             BASE="${{ github.event.pull_request.base.sha }}"
           else
@@ -129,18 +124,13 @@ jobs:
             echo "non-md=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # Added v0.0.9: produces the portable single-exe artifact.  Skipped on
-  # PRs that only touch markdown to keep doc-only PRs fast.
   build-portable-x64:
     needs: changes
     if: needs.changes.outputs.non-md == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-msvc
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: Swatinem/rust-cache@v2
@@ -154,56 +144,30 @@ jobs:
           path: target/x86_64-pc-windows-msvc/release/lantern.exe
           if-no-files-found: error
 
-  # Added v0.0.10, corrected v0.1.0: produces signed installer artifacts
-  # (NSIS + MSI + standalone exe) when an Authenticode certificate secret
-  # is available.  The job is conditional on the LANTERN_CODESIGN_PFX_BASE64
-  # secret being set; on a PR from a fork or a repo without the secret it
-  # is skipped (so external contributors can still build unsigned locally).
-  #
-  # Signing model: Tauri produces unsigned bundles, then `signtool sign`
-  # runs as a post-build step against each artefact.  v0.0.10's original
-  # design routed signing through Tauri's `bundle.windows.signCommand`
-  # config field, but Tauri 2 errors when that field resolves to an empty
-  # string at build time, so we sign post-hoc instead.  The
-  # LANTERN_SIGNED=1 env var is still passed during cargo build so
-  # build.rs can bake the `BuildInfo.signed` flag into the binary.
-  #
-  # Local equivalent: see private/docs/14-signing-runbook.md.
+  # Signed NSIS + MSI + exe, only when the Authenticode certificate secret is
+  # set. Tauri 2 rejects an empty `bundle.windows.signCommand`, so the bundles
+  # are built unsigned and signed afterwards with signtool. LANTERN_SIGNED=1
+  # lets build.rs bake `BuildInfo.signed` into the binary.
   sign-windows-installed:
     needs: changes
-    if: needs.changes.outputs.non-md == 'true'
+    if: needs.changes.outputs.non-md == 'true' && needs.changes.outputs.can-sign == 'true'
     runs-on: windows-latest
-    env:
-      LANTERN_CODESIGN_PFX_BASE64: ${{ secrets.LANTERN_CODESIGN_PFX_BASE64 }}
-      LANTERN_CODESIGN_PFX_PASSWORD: ${{ secrets.LANTERN_CODESIGN_PFX_PASSWORD }}
+    # The certificate secrets reach only the step that imports them, and the
+    # job runs no third-party actions (no toolchain action, no build cache).
     steps:
       - uses: actions/checkout@v4
-      - name: Skip if cert secret is missing
-        id: gate
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrEmpty($env:LANTERN_CODESIGN_PFX_BASE64)) {
-            Write-Host "::notice::LANTERN_CODESIGN_PFX_BASE64 not set; skipping signed-installer build."
-            "should_run=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          } else {
-            "should_run=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          }
-      - if: steps.gate.outputs.should_run == 'true'
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-msvc
-      - if: steps.gate.outputs.should_run == 'true'
-        uses: actions/setup-node@v4
+      - name: Install the Rust toolchain
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - if: steps.gate.outputs.should_run == 'true'
-        uses: Swatinem/rust-cache@v2
-      - if: steps.gate.outputs.should_run == 'true'
-        run: npm ci
+      - run: npm ci
       - name: Import code-signing certificate
-        if: steps.gate.outputs.should_run == 'true'
         id: cert
         shell: pwsh
+        env:
+          LANTERN_CODESIGN_PFX_BASE64: ${{ secrets.LANTERN_CODESIGN_PFX_BASE64 }}
+          LANTERN_CODESIGN_PFX_PASSWORD: ${{ secrets.LANTERN_CODESIGN_PFX_PASSWORD }}
         run: |
           $bytes = [Convert]::FromBase64String($env:LANTERN_CODESIGN_PFX_BASE64)
           $pfx   = Join-Path $env:RUNNER_TEMP "lantern-codesign.pfx"
@@ -213,12 +177,10 @@ jobs:
           "thumbprint=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Remove-Item $pfx -Force
       - name: Build installed flavor (unsigned bundles)
-        if: steps.gate.outputs.should_run == 'true'
         env:
           LANTERN_SIGNED: "1"
         run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.installed.conf.json
       - name: Sign artefacts with signtool
-        if: steps.gate.outputs.should_run == 'true'
         shell: pwsh
         env:
           THUMB: ${{ steps.cert.outputs.thumbprint }}
@@ -241,7 +203,6 @@ jobs:
             Write-Host "Signed: $($a.FullName)"
           }
       - name: Upload signed installers
-        if: steps.gate.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: lantern-installed-signed-x64
@@ -251,13 +212,10 @@ jobs:
             target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
           if-no-files-found: error
 
-  # Added v0.0.9, corrected after every run hashed differently: the
-  # original job built from two sibling checkouts (`build-a` vs
-  # `build-b`).  rustc / MSVC embed absolute source paths, so those
-  # binaries can never match.  Build twice from the same tree, wipe
-  # `target/` between them, and pin path-remap + /Brepro so the PE
-  # header is deterministic.  Still continue-on-error until it stays
-  # green for a sustained window.
+  # Build the portable exe twice from the same tree (wiping target/ in
+  # between) and compare hashes. Path remapping and /Brepro keep absolute
+  # paths and PE timestamps out of the binary. Non-blocking until it stays
+  # green.
   reproducible-build-check:
     runs-on: windows-latest
     continue-on-error: true
@@ -267,10 +225,7 @@ jobs:
       RUSTFLAGS: "--remap-path-prefix=${{ github.workspace }}=. -C link-arg=/Brepro"
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-msvc
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npm ci

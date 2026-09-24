@@ -30,6 +30,7 @@ import type {
   ShortcutBinding,
   SortSpec,
   TabId,
+  NodeId,
   TabInfo,
   TreatmentInfo,
   TreeNodeLazy,
@@ -113,8 +114,9 @@ export const ipc = {
    * The returned `changeset_id` must be passed to `applyChangeset` or simply
    * discarded (it expires when the tab closes).
    */
-  runPass: (tab: TabId, ruleSetName: string) =>
-    invoke<ChangeSetPreview>("run_pass", { tab, ruleSetName }),
+  /** `scope` limits the pass to one folder's subtree; omit for the whole document. */
+  runPass: (tab: TabId, ruleSetName: string, scope?: NodeId | null) =>
+    invoke<ChangeSetPreview>("run_pass", { tab, ruleSetName, scope: scope ?? null }),
 
   /**
    * Apply approved changes from a pending change set.

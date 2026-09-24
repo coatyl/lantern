@@ -9,9 +9,135 @@ Lantern uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Work toward **0.2.0**.  Breaking changes are still allowed until v1.0,
-which will be **the stability promise**; from then on breaking changes
-require a major-version bump.
+Work toward **0.2.0**, the "warm archive" release: a rebuilt design
+system, a real review surface, a decluttered workspace, and new ways to
+get bookmarks in (Chrome JSON, drag-and-drop) and clean them (duplicates,
+folder-scoped passes).  Breaking changes are still allowed until v1.0,
+which will be **the stability promise**.
+
+### Added
+
+- **Review surface.** Running a pass opens a full-width review in place
+  of the list and detail panes: one card per touched bookmark or folder
+  with its title and folder path, wrapped before/after diffs, filter
+  chips by kind (URL / Title / Folder name / Delete) with counts, a text
+  filter, and bulk select that acts on what is shown.  Apply names the
+  deletions it includes and turns red when any are selected;
+  `Ctrl+Enter` applies, `Esc` discards, and a successful apply offers
+  **Undo** in its toast.
+- **Folder-scoped passes.** The sanitize panel can run on the whole
+  document or on the folder shown in the list (`run_pass` takes an
+  optional scope; `PassTarget::Subtree` in lantern-core).
+- **Drag-and-drop.** Drop bookmark files anywhere on the window to open
+  them; the open dialog accepts several files at once; re-opening an
+  open file focuses its tab.
+- **Chrome / Chromium `Bookmarks` JSON** reader
+  (`lantern_core::parser::parse_chrome_json`), auto-detected by
+  `lantern-io::read_bookmark_file`.  Read-only: the profile file is
+  never written.
+- **CLI:** `convert <input> -o <output>` writes Netscape HTML from any
+  supported input; `info` and `sanitize` accept JSON too.
+- **Find duplicates** rule set with the exact-URL duplicate pass
+  (`structure.duplicates.exact_url`): bookmarks sharing a URL after light
+  canonicalisation (lowercase host, no trailing slash) keep the oldest
+  copy; the others are proposed as destructive, unselected deletions.
+  Query-string and fragment differences are not collapsed.  A real CLI
+  `sanitize` run still auto-approves; use `--dry-run` first.
+- **Command palette** (`Ctrl+K` / `⌘K`): open, save a copy, run pass,
+  focus search, compare tabs, check dead links, merge, settings, theme.
+- **Search as you type**, with the match mode (Text / Glob / Regex) and
+  Titles / URLs options in a results bar; an invalid pattern is shown
+  inline instead of failing silently.
+- **Toasts for file actions**: saved, save failed, open failed,
+  unsupported file, nothing to undo / redo.
+- **Close guard.** Closing a tab, "close others / all", or the window
+  (title bar, `Alt+F4`) with unsaved edits asks first: save copies and
+  close, discard, or cancel.
+- **Shortcuts:** `Ctrl+W` / `Ctrl+Shift+W` close tab / all,
+  `Ctrl+Tab` / `Ctrl+Shift+Tab` switch tabs, `Ctrl+F` search, `Ctrl+R`
+  run the selected rule set, `Ctrl+M` merge.
+
+### Changed
+
+- **Saving never touches the original.**  `Ctrl+S` saves a *copy*: the
+  first time it asks where (suggesting `<name>.clean.html`), then reuses
+  that path; `Ctrl+Shift+S` always asks; choosing the original file is
+  refused.  Previously `Ctrl+S` wrote over the opened file, which for a
+  Chrome `Bookmarks` file would have replaced the JSON with HTML.  The
+  title-bar "Export…" button is now "Save copy…".
+- **Design system.** Tailwind's neutral scale is theme-aware (CSS
+  variables with contrast floors per step), so the whole UI themes
+  correctly; light mode was largely unreadable before (primary text
+  rendered cream on cream).  New tokens: `on-accent`, `on-danger`,
+  `scrim`, `info` / `warn` / `ok`, and a `--line` divider that replaces
+  Tailwind's default white hairlines.  Warm-archive palette: ink
+  surfaces in dark mode, paper in light mode, honey-amber accent.
+- **Workspace toolbar.** The list header is one row (breadcrumb, search,
+  Filter, New ▾) instead of four (breadcrumb, search with `abc / T / U`
+  toggles, a `+ Bookmark / + Folder / + Separator` row, columns).
+- **Folder tree** is a WAI-ARIA tree: one tab stop, arrow keys,
+  Home/End, Enter/Space, F2 to rename.
+- **Library home** carries the command-palette hint and accepts
+  Chrome JSON in its open dialog.
+- Strings are pluralised ("1 change", "1 bookmark").
+- **BREAKING (CLI):** the command-line binary is `lantern-cli` (it was
+  `lantern`, the same name as the GUI executable, so a workspace build
+  wrote both to one path).
+- The offline build no longer links `lantern-net` at all.
+- Settings → Keyboard lists exactly the shortcuts that are bound (it
+  advertised several that did nothing).
+- Internals: `lantern-app`'s 2,000-line `commands.rs` is split per
+  domain, one shared `Modal` shell replaces per-dialog chrome, the
+  rule-set editor is split into `components/rule-sets/` (its header
+  buttons no longer sit under the close button), and the UI imports the
+  generated ts-rs types instead of a hand-kept mirror.
+- Docs: README, CONTRIBUTING (now including how to release), SECURITY
+  and ROADMAP rewritten against the code; references to documents that
+  are not in the repository are gone.
+- Version files are at `0.2.0`.
+
+### Fixed
+
+- A folder or selection pass could propose deleting bookmarks outside
+  its target: document-level treatments (duplicates) now only keep
+  changes to in-scope nodes.
+- The proposed-changes preview was translucent over the detail pane and
+  cut URLs to one line; deletions showed as "(deleted)" with no title or
+  URL.  Changes now carry `node_title`, `node_url` and `location`.
+- **Undo** of a change set whose deletions were not in document order
+  restored nodes at the wrong positions, and deleting a folder together
+  with one of its children duplicated the child on undo.
+- Newly created bookmarks, folders and separators could reuse an id
+  already in the parsed document.
+- **Search** missed matches inside words ("brar" in "library") and
+  queries shorter than three characters.
+- Duplicating a rule set dropped its per-treatment configuration.
+- Moving a folder into its own subtree panicked; it is now refused.
+- Duplicate proposals and extra Chrome roots came out in hash-map order
+  (different on every run); both follow document order.
+- Folder-name entity decoding turned `&mdash;` / `&ndash;` into `-`, and
+  an entity right after a stray `&` was swallowed.
+- Export dropped `ICON_URI` attributes.
+- Log lines with a right-aligned level or tab separators lost their
+  message in the Logs pane.
+- The integration branch that carried the features above had been
+  merged with both sides of every conflict kept and did not compile;
+  repaired (CLI integration tests, `App.tsx`).
+
+### Security
+
+- The release workflow runs no third-party actions and no build cache:
+  the toolchain comes from `rustup` and `rust-toolchain.toml`, and
+  artefacts build from a clean target directory.
+- The CI signing job exposes the certificate secrets only to the step
+  that imports them (they were job-level environment visible to every
+  action) and runs no third-party actions.
+
+### Removed
+
+- The inline `PreviewPanel` / `ChangeRow` components (superseded by the
+  review surface) and the dead welcome screen (superseded by the
+  library home in 0.1.0).
 
 ---
 
@@ -25,9 +151,9 @@ bug (see "Since the 2026-05-05 freeze").  The v0.0.x entries further
 down are internal milestones: none of them were tagged or published.
 
 An early, pre-1.0 milestone.  Ten months of development across nine
-milestones (v0.0.1 through v0.0.11) converge here.  Every PRD requirement either meets its NFR target or has a
-documented operational caveat
-(`private/docs/17-known-limitations-v0.1.md`).  357 Rust + 70 Vitest +
+milestones (v0.0.1 through v0.0.11) converge here.  Every PRD
+requirement either meets its NFR target or has a documented operational
+caveat (in the maintainers' known-limitations notes).  357 Rust + 70 Vitest +
 8 Playwright E2E specs, all green.  Code-signing scaffolding ships
 unsigned pending certificate procurement; NVDA test plan ships ready
 for first execution.
@@ -102,15 +228,15 @@ for first execution.
   "Contributing" sections.  101 lines.
 
 **Release process docs**
-- `private/docs/15-public-repo-flip-checklist.md`: maintainer's
+- Public-repo flip checklist (internal): maintainer's
   pre-flip checklist (secrets review, placeholder resolution, CI on
   cold clone, NVDA + cert prerequisites, version-tag creation,
   release-artefact attachment, repo settings).
-- `private/docs/16-nvda-test-plan.md`, 10-test manual screen-reader
+- NVDA test plan (internal), 10-test manual screen-reader
   test plan for NVDA-on-Windows: startup, file open, tablist,
   tree, list, modal open/close, form, toast, empty states.  Findings
-  template references `private/audits/A11Y_NVDA_v0.1.0.md`.
-- `private/docs/17-known-limitations-v0.1.md` (new): what's
+  template references an internal NVDA audit record.
+- Known-limitations notes for v0.1 (internal, new): what's
   intentionally out of 0.1.0 and where it lives on the roadmap.
 
 ### Fixed
@@ -145,8 +271,8 @@ for first execution.
   now invokes `signtool sign` as a post-build step against each
   produced artefact (`lantern.exe`, NSIS `.exe`, MSI `.msi`).
   `LANTERN_SIGNED=1` is still threaded into the cargo build so
-  `build.rs` can flip the `BuildInfo.signed` flag.  Runbook
-  (`14-signing-runbook.md`) and CI workflow updated to match.
+  `build.rs` can flip the `BuildInfo.signed` flag.  Internal signing
+  runbook and CI workflow updated to match.
 - **MSIX target deferred to a future release.**  v0.0.10 listed `msix`
   in `bundle.targets`; in practice MSIX packaging needs publisher-
   identity certificate work and Tauri 2's MSIX bundler integration
@@ -169,10 +295,10 @@ for first execution.
   CI `sign-windows-installed` job activates the moment
   `LANTERN_CODESIGN_PFX_BASE64` lands in repo secrets.  Until then,
   `BuildInfo.signed` reports `false` and About shows `unsigned`.
-  See `private/docs/14-signing-runbook.md`.
-- **NVDA manual session not yet conducted.**  Test plan in
-  `16-nvda-test-plan.md` is ready for first execution.  Findings
-  will land in `private/audits/A11Y_NVDA_v0.1.0.md` and any P0
+  The maintainers' internal signing runbook covers enabling it.
+- **NVDA manual session not yet conducted.**  The internal NVDA
+  test plan is ready for first execution.  Findings
+  will land in an internal audit record and any P0
   outcomes block a follow-up patch release.
 - **ARM64 build target** still pending GitHub-hosted ARM Windows
   runners reaching GA.  The build configs handle x86_64 only.
@@ -212,9 +338,8 @@ UI (Playwright):    8 specs across 5 files       (non-blocking)
 - All version files at `0.1.0` (`Cargo.toml`, `package.json`,
   `ui/package.json`, `tauri.conf.json`).
 - `Cargo.lock` regenerated.
-- `private/docs/STATUS.md`, `private/docs/08-version-roadmap.md`,
-  `private/docs/04-engineering-process.md` updated with the v0.1.0
-  entry.
+- Internal status, version-roadmap and engineering-process notes
+  updated with the v0.1.0 entry.
 
 ---
 
@@ -367,7 +492,7 @@ The `installed` Tauri config switches from MSI placeholder to true MSIX.
   documents `Get-AuthenticodeSignature` for downloaded binaries and
   flags the v0.0.10 caveat (signed pipeline in place, ships unsigned
   until a cert is acquired).
-- `private/docs/14-signing-runbook.md`, internal runbook for
+- Internal signing runbook for
   maintainers: how to enable signed CI builds (drop a base64 PFX
   + password into repo secrets), how to sign locally for ad-hoc
   testing, troubleshooting (signtool not on PATH, thumbprint
@@ -383,8 +508,8 @@ The `installed` Tauri config switches from MSI placeholder to true MSIX.
 ### Deferred (still cert-gated)
 
 - **The certificate itself.**  Scaffolding is in place; releases
-  ship unsigned until a cert is in repo secrets.  Track in
-  `private/docs/STATUS.md` "Next thing to do".
+  ship unsigned until a cert is in repo secrets.  Tracked in the
+  maintainers' internal status notes.
 - **ARM64 build target**: still pending GitHub-hosted ARM Windows
   runners reaching GA.
 
@@ -412,7 +537,7 @@ ships as soon as one is in hand.  349 Rust + 54 Vitest tests, all green.
 - Unknown keys fall through to the key string itself, so missing
   translations are visible-but-harmless during a mid-flight migration.
 - Adding a locale is a drop-in file in `ui/src/i18n/` plus a one-line
-  registry widen.  See `ui/src/locales/README.md` for the contract.
+  registry widen.  See `ui/src/i18n/README.md` for the contract.
 - 3 new Vitest tests cover known-key lookup, unknown-key fallback, and
   parameter substitution.
 
@@ -548,7 +673,7 @@ search-index baseline gating NFR-P-4, and the final A11Y polish round.
   controls `w-10` → `w-12` (40 → 48 px); Settings gear `w-8` → `w-10`;
   modal close buttons given explicit `w-8 h-8` hit areas; TabBar close
   button `min-w-[24px]` → `min-w-[32px]`.
-- `private/audits/A11Y_AUDIT_v0.0.6.md` Status table now reads
+- The internal v0.0.6 accessibility audit's Status table now reads
   `✅ All closed in v0.0.8` for the P2 row; per-item entries kept
   verbatim for archival reference.
 
@@ -560,13 +685,13 @@ search-index baseline gating NFR-P-4, and the final A11Y polish round.
 
 ### Process / docs
 
-- `03-technical-design.md` §12 updated: moves "v0.0.6 planned" into
+- Internal technical design §12 updated: moves "v0.0.6 planned" into
   "v0.0.7 current" (offline-only build flavor shipped in v0.0.6;
   reproducible-build CI now slated for v0.0.9).
-- `04-engineering-process.md` header refreshed to v0.0.8.
-- `08-version-roadmap.md`: v0.0.7 entry moved to "Shipped releases";
+- Internal engineering-process doc header refreshed to v0.0.8.
+- Internal version roadmap: v0.0.7 entry moved to "Shipped releases";
   v0.0.8 milestone slot opened, then closed.
-- `13-strategy.md` Q1 row marks v0.0.6 + v0.0.7 shipped and D-1
+- Internal strategy doc's Q1 row marks v0.0.6 + v0.0.7 shipped and D-1
   resolved.
 - ADR-0009 status line updated to "Implemented in v0.0.7".
 
@@ -759,8 +884,8 @@ out of the dead-link checker.  The **D-1** decision (cross-document-merge
   runtime, so checking it would fail unconditionally.
 
 **Decisions**
-- ADR-0009 (`private/adrs/ADR-0009-cross-document-merge-nodeid-scope.md`)
-  ratifies the provisional D-1 resolution: a merged document is a fresh
+- ADR-0009 (internal decision record on cross-document merge and `NodeId`
+  scope) ratifies the provisional D-1 resolution: a merged document is a fresh
   `Document` with its own `NodeId` allocator; subtrees from the source
   documents are deep-cloned with reassigned ids; the merged document has
   empty undo/redo stacks and source documents stay read-only.  Concretely
@@ -769,7 +894,7 @@ out of the dead-link checker.  The **D-1** decision (cross-document-merge
   `model::merge` module and a single `merge_documents` IPC command.
 
 **Process / docs**
-- `private/audits/A11Y_AUDIT_v0.0.6.md`: 25 prioritised findings (P0/P1/P2)
+- Internal v0.0.6 accessibility audit: 25 prioritised findings (P0/P1/P2)
   covering focus management, keyboard nav, ARIA semantics, touch targets,
   and color contrast.  P0 items shipped in this release; P1/P2 carry into
   v0.0.7.
@@ -1061,7 +1186,7 @@ property and fuzz tests so later refactors can move fast without regressions.
 - **Rule-set editor UI**: backend ready, UI deferred.
 - **Settings modal UI**: backend ready, UI deferred.
 
-See [`docs/v0.0.3-roadmap.md`](docs/v0.0.3-roadmap.md) for the full plan.
+The full plan was kept in an internal v0.0.3 roadmap.
 
 ### Privacy
 

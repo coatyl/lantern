@@ -2,14 +2,10 @@
 import type { LinkStatusView } from "./LinkStatusView";
 
 /**
- * One row of [`LinkCheckReport::entries`]: the bookmark and what came back
- * from probing it.
- *
- * The `status` field mirrors [`lantern_net::LinkStatus`] using the same
- * internally-tagged JSON shape so the UI can pattern-match by `status.kind`.
+ * One probed bookmark.
  */
 export type LinkCheckEntry = { node_id: number, url: string, title: string, status: LinkStatusView, 
 /**
- * Time-to-status, milliseconds.  `0` for skipped URLs.
+ * Milliseconds until a status was known; `0` for skipped URLs.
  */
 elapsed_ms: number, };

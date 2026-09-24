@@ -56,6 +56,7 @@ import {
   XIcon,
   CheckIcon,
   SearchIcon,
+  PlusIcon,
 } from "../components/Icons";
 import { FilterDrawer } from "../components/FilterDrawer";
 import { SkeletonRow } from "../components/Skeleton";
@@ -63,6 +64,7 @@ import { EmptyState, EmptyFolderIcon, EmptySearchIcon } from "../components/Empt
 import { useElementSize } from "../hooks/useElementSize";
 import { useT } from "../i18n/I18nProvider";
 import { useToast } from "../hooks/useToast";
+import { SEARCH_FOCUS_EVENT } from "../components/paletteCommands";
 import type { FolderItem, SortColumn } from "../ipc/types";
 
 const COLUMNS: { key: SortColumn | null; label: string; className: string }[] = [
@@ -73,17 +75,8 @@ const COLUMNS: { key: SortColumn | null; label: string; className: string }[] = 
 
 const SEARCH_MODES: SearchMode[] = ["substring", "glob", "regex"];
 
-const SEARCH_MODE_LABEL: Record<SearchMode, string> = {
-  substring: "abc",
-  glob: "*?",
-  regex: ".*",
-};
-
-const SEARCH_MODE_PLACEHOLDER: Record<SearchMode, string> = {
-  substring: "Search bookmarks...",
-  glob: "Glob search...",
-  regex: "Regex search...",
-};
+/** Delay between the last keystroke and the search request. */
+const SEARCH_DEBOUNCE_MS = 180;
 
 // ── Row-height tokens (must match `[data-density]` rules in index.css) ──
 //
@@ -91,11 +84,6 @@ const SEARCH_MODE_PLACEHOLDER: Record<SearchMode, string> = {
 // Comfortable:       py-1 + 0.4rem extra top+bottom → ~36 px tall row.
 const ROW_HEIGHT_COMPACT     = 28;
 const ROW_HEIGHT_COMFORTABLE = 36;
-
-function nextSearchMode(current: SearchMode): SearchMode {
-  const index = SEARCH_MODES.indexOf(current);
-  return SEARCH_MODES[(index + 1) % SEARCH_MODES.length];
-}
 
 /**
  * Reads the live `data-density` attribute off `<html>` and converts it to a
@@ -159,6 +147,18 @@ export default function ListPane() {
   const [searchUrls, setSearchUrls]     = useState(true);
   const [searchMode, setSearchMode]     = useState<SearchMode>("substring");
   const [searching, setSearching]       = useState(false);
+  const [searchError, setSearchError]   = useState<string | null>(null);
+  const [newMenuOpen, setNewMenuOpen]   = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const focusSearch = () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+    window.addEventListener(SEARCH_FOCUS_EVENT, focusSearch);
+    return () => window.removeEventListener(SEARCH_FOCUS_EVENT, focusSearch);
+  }, []);
 
   // ── Filter drawer (server-side, store-backed) ─────────────────────────────
   const [showFilter, setShowFilter] = useState(false);
@@ -213,22 +213,51 @@ export default function ListPane() {
     refreshList();
   };
 
-  // ── Search ────────────────────────────────────────────────────────────────
-  const handleSearch = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!searchInput.trim() || !activeTab) return;
+  // ── Search (as you type) ──────────────────────────────────────────────────
+  const search = async () => {
+    const query = searchInput.trim();
+    if (!activeTab) return;
+    if (!query) {
+      if (useDocuments.getState().isSearchMode) clearSearch();
+      setSearchError(null);
+      return;
+    }
     setSearching(true);
     try {
-      await runSearch(searchInput.trim(), searchTitles, searchUrls, searchMode);
+      await runSearch(query, searchTitles, searchUrls, searchMode);
+      setSearchError(null);
+    } catch (e) {
+      // Typically an incomplete regex / glob while the user is still typing.
+      setSearchError(e instanceof Error ? e.message : String(e));
     } finally {
       setSearching(false);
     }
+  };
+  const searchRef = useRef(search);
+  searchRef.current = search;
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => void searchRef.current(), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput, searchTitles, searchUrls, searchMode, activeTab]);
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void search();
   };
 
   const handleClearSearch = () => {
     clearSearch();
     setSearchInput("");
+    setSearchError(null);
   };
+
+  // Browsing to another folder ends the search.
+  const folderKey = folderStack.map((c) => c.id).join("/");
+  useEffect(() => {
+    setSearchInput("");
+    setSearchError(null);
+  }, [folderKey, activeTab]);
 
   // ── Display items (declared early, used by keyboard handler) ──────────────
   // Note: kind filter is now server-side via the store's `filter`, so no
@@ -297,9 +326,10 @@ export default function ListPane() {
     const handler = (e: KeyboardEvent) => {
       const active = document.activeElement;
       const inSearch = active && active.closest("form");
+      const inDialog = active && active.closest('[role="dialog"]');
       const inRename = active && (active as HTMLElement).dataset.renameInput;
       const inCreate = active && (active as HTMLElement).dataset.createInput;
-      if (inSearch || inRename || inCreate) return;
+      if (inSearch || inDialog || inRename || inCreate) return;
 
       const {
         items,
@@ -443,131 +473,101 @@ export default function ListPane() {
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
-      {!isSearchMode && (
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-0.5 px-2 h-7 border-b border-neutral-800
-                     shrink-0 overflow-x-auto scrollbar-none"
-        >
+      {/* ── Toolbar: where you are · search · filter · new ─────────────── */}
+      <div className="flex items-center gap-2 px-2 h-10 border-b border-neutral-800 shrink-0">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-0.5 min-w-0 overflow-x-auto scrollbar-none">
           <button
             onClick={() => navigateToAncestor(-1)}
-            title="Document root"
-            className={`flex items-center gap-1 px-1 py-0.5 rounded text-[11px]
-                        transition-colors focus:outline-none focus-visible:ring-1
-                        focus-visible:ring-accent shrink-0
+            title={t("list.root")}
+            aria-current={folderStack.length === 0 ? "page" : undefined}
+            className={`flex items-center gap-1.5 px-1.5 py-1 rounded text-xs shrink-0 transition-colors
                         ${folderStack.length === 0
-                          ? "text-neutral-200 font-medium"
-                          : "text-neutral-500 hover:text-neutral-200"
-                        }`}
+                          ? "text-neutral-100 font-medium"
+                          : "text-neutral-500 hover:text-neutral-200 hover:bg-surface-2"}`}
           >
-            <HomeIcon className="w-3 h-3" />
+            <HomeIcon className="w-3.5 h-3.5" />
+            {folderStack.length === 0 && <span>{t("list.root")}</span>}
           </button>
-          {folderStack.map((crumb, i) => (
-            <span key={i} className="flex items-center gap-0.5 shrink-0">
-              <ChevronRightIcon className="w-2.5 h-2.5 text-neutral-700" />
-              <button
-                onClick={() => navigateToAncestor(i)}
-                className={`px-1 py-0.5 rounded text-[11px] transition-colors
-                            focus:outline-none focus-visible:ring-1 focus-visible:ring-accent
-                            max-w-[140px] truncate
-                            ${i === folderStack.length - 1
-                              ? "text-neutral-200 font-medium cursor-default"
-                              : "text-neutral-500 hover:text-neutral-200"
-                            }`}
-                disabled={i === folderStack.length - 1}
-              >
-                {crumb.name}
-              </button>
-            </span>
-          ))}
+          {folderStack.map((crumb, i) => {
+            const current = i === folderStack.length - 1;
+            return (
+              <span key={crumb.id} className="flex items-center gap-0.5 min-w-0">
+                <ChevronRightIcon className="w-3 h-3 text-neutral-700 shrink-0" />
+                <button
+                  onClick={() => navigateToAncestor(i)}
+                  disabled={current}
+                  aria-current={current ? "page" : undefined}
+                  title={crumb.name}
+                  className={`px-1.5 py-1 rounded text-xs truncate max-w-[160px] transition-colors
+                              ${current
+                                ? "text-neutral-100 font-medium cursor-default"
+                                : "text-neutral-500 hover:text-neutral-200 hover:bg-surface-2"}`}
+                >
+                  {crumb.name}
+                </button>
+              </span>
+            );
+          })}
         </nav>
-      )}
 
-      {/* ── Search bar ───────────────────────────────────────────────────── */}
-      <form
-        onSubmit={handleSearch}
-        className="flex items-center gap-1.5 px-2 py-1.5 border-b border-neutral-800 shrink-0"
-      >
-        <input
-          type="search"
-          placeholder={SEARCH_MODE_PLACEHOLDER[searchMode]}
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          disabled={!activeTab}
-          className={`flex-1 min-w-0 bg-surface-2 text-xs text-neutral-200 rounded
-                     px-2 py-1 placeholder-neutral-600
-                     focus:outline-none focus:ring-1 focus:ring-accent
-                     disabled:opacity-40
-                     ${searchMode !== "substring" ? "font-mono" : ""}`}
-        />
-        {/* Search-mode cycle */}
+        <form onSubmit={handleSearchSubmit} role="search" className="ml-auto relative w-72 max-w-[45%] shrink">
+          <SearchIcon className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-600 pointer-events-none" />
+          <input
+            ref={searchInputRef}
+            type="search"
+            data-lantern-search
+            aria-label={t("list.search")}
+            placeholder={t(`list.search.placeholder.${searchMode}`)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Escape") return;
+              e.preventDefault();
+              if (searchInput) handleClearSearch();
+              else searchInputRef.current?.blur();
+            }}
+            aria-invalid={searchError !== null}
+            className={`w-full bg-surface-2 border rounded-md pl-7 pr-7 py-1 text-xs text-neutral-200
+                        placeholder-neutral-600 focus:outline-none
+                        ${searchError ? "border-danger/60" : "border-neutral-800 focus:border-accent/60"}
+                        ${searchMode !== "substring" ? "font-mono" : ""}`}
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              aria-label={t("list.search.clear")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-neutral-500 hover:text-neutral-200"
+            >
+              {searching ? <span className="block w-3 text-center leading-none">…</span> : <XIcon className="w-3 h-3" />}
+            </button>
+          )}
+        </form>
+
         <button
           type="button"
-          onClick={() => setSearchMode((m) => nextSearchMode(m))}
-          title={`Switch search mode (current: ${searchMode})`}
-          className={`px-1 text-[11px] font-mono transition-colors focus:outline-none select-none
-                      ${searchMode !== "substring"
-                        ? "text-accent"
-                        : "text-neutral-600 hover:text-neutral-400"}`}
-        >
-          {SEARCH_MODE_LABEL[searchMode]}
-        </button>
-        <label className="flex items-center gap-0.5 text-[10px] text-neutral-500 cursor-pointer select-none">
-          <input type="checkbox" checked={searchTitles} onChange={(e) => setSearchTitles(e.target.checked)} className="accent-amber-400" />
-          T
-        </label>
-        <label className="flex items-center gap-0.5 text-[10px] text-neutral-500 cursor-pointer select-none">
-          <input type="checkbox" checked={searchUrls} onChange={(e) => setSearchUrls(e.target.checked)} className="accent-amber-400" />
-          U
-        </label>
-        {/* Filter drawer toggle */}
-        {/* audit P2 #21/missing focus ring, filter toggle: idle text bumped
-            from neutral-600 (~3:1) to neutral-400 (~5.5:1) and a focus-visible
-            ring added so keyboard users can tell when the chevron is focused. */}
-        <button
-          type="button"
-          onClick={() => setShowFilter(f => !f)}
-          aria-label={filterActive ? "Filter (active)" : "Filter"}
+          onClick={() => setShowFilter((f) => !f)}
           aria-expanded={showFilter}
           aria-controls="filter-drawer"
-          title={filterActive ? "Filter (active)" : "Filter"}
-          className={`p-0.5 transition-colors select-none rounded
-                      focus:outline-none focus-visible:ring-1 focus-visible:ring-accent
-                      ${(showFilter || filterActive)
-                        ? "text-accent"
-                        : "text-neutral-400 hover:text-neutral-100"}`}
+          className={`relative flex items-center gap-1 px-2 py-1 rounded-md border text-xs shrink-0 transition-colors
+                      ${showFilter || filterActive
+                        ? "border-accent/50 text-accent bg-accent/10"
+                        : "border-neutral-800 text-neutral-400 hover:text-neutral-100 hover:border-neutral-700"}`}
         >
-          <ChevronDownIcon
-            className={`w-3 h-3 transition-transform ${showFilter ? "rotate-180" : ""}`}
-          />
+          {t("list.filter")}
+          {filterActive && <span className="w-1.5 h-1.5 rounded-full bg-accent" aria-label={t("list.filter.active")} />}
         </button>
-        {isSearchMode ? (
-          // audit P2 missing focus ring: clear-search and submit gain rings
-          <button
-            type="button"
-            onClick={handleClearSearch}
-            title="Clear search"
-            className="p-0.5 text-neutral-300 hover:text-neutral-100 rounded
-                       focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-          >
-            <XIcon className="w-3 h-3" />
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={!searchInput.trim() || searching}
-            title="Search"
-            className="p-0.5 text-neutral-300 hover:text-neutral-100 disabled:opacity-40
-                       rounded focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-          >
-            {searching
-              ? <span className="text-[11px] leading-none w-3 inline-block text-center">…</span>
-              : <SearchIcon className="w-3.5 h-3.5" />
-            }
-          </button>
-        )}
-      </form>
+
+        <NewMenu
+          open={newMenuOpen}
+          onOpenChange={setNewMenuOpen}
+          disabled={isSearchMode}
+          onPick={(kind) => {
+            setNewMenuOpen(false);
+            startCreating(kind);
+          }}
+        />
+      </div>
 
       {/* ── Structured filter drawer ─────────────────────────────────────── */}
       {showFilter && (
@@ -579,46 +579,45 @@ export default function ListPane() {
         />
       )}
 
-      {/* ── Search mode banner ───────────────────────────────────────────── */}
-      {isSearchMode && (
-        <div className="flex items-center justify-between px-2 py-1 bg-surface-2
-                        border-b border-neutral-800 shrink-0">
-          <span className="text-[10px] text-neutral-400">
-            {displayTotal} result{displayTotal !== 1 ? "s" : ""} for{" "}
-            <span className="text-neutral-200">"{searchInput}"</span>
-          </span>
-          <button onClick={handleClearSearch}
-            className="text-[10px] text-neutral-500 hover:text-neutral-300">
-            Back to folder
+      {/* ── Search results bar: options live where they matter ──────────── */}
+      {(isSearchMode || searchError) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-surface-1 border-b border-neutral-800 shrink-0 text-xs">
+          {searchError ? (
+            <span role="alert" className="text-danger truncate">{t("list.search.invalid")}</span>
+          ) : (
+            <span className="text-neutral-400" aria-live="polite">
+              {t("list.search.results", { n: displayTotal, query: searchInput.trim() })}
+            </span>
+          )}
+          <div role="radiogroup" aria-label={t("list.search.mode")} className="flex rounded-md border border-neutral-800 overflow-hidden">
+            {SEARCH_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={searchMode === mode}
+                onClick={() => setSearchMode(mode)}
+                className={`px-2 py-0.5 transition-colors ${
+                  searchMode === mode ? "bg-accent/15 text-accent" : "text-neutral-500 hover:text-neutral-200"
+                }`}
+              >
+                {t(`list.search.mode.${mode}`)}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 text-neutral-400">
+            <label className="flex items-center gap-1 cursor-pointer select-none">
+              <input type="checkbox" checked={searchTitles} onChange={(e) => setSearchTitles(e.target.checked)} />
+              {t("list.search.titles")}
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer select-none">
+              <input type="checkbox" checked={searchUrls} onChange={(e) => setSearchUrls(e.target.checked)} />
+              {t("list.search.urls")}
+            </label>
+          </div>
+          <button onClick={handleClearSearch} className="ml-auto text-neutral-500 hover:text-neutral-200">
+            {t("list.search.back")}
           </button>
-        </div>
-      )}
-
-      {/* ── Create toolbar ───────────────────────────────────────────────── */}
-      {!isSearchMode && (
-        <div className="flex items-center gap-1 px-2 h-7 border-b border-neutral-800
-                        bg-surface-2 shrink-0">
-          <span className="text-[10px] text-neutral-600 uppercase tracking-wider mr-0.5">New</span>
-          {(
-            [
-              { label: "+ Bookmark",  kind: "bookmark"  as const },
-              { label: "+ Folder",    kind: "folder"    as const },
-              { label: "+ Separator", kind: "separator" as const },
-            ]
-          ).map(({ label, kind }) => (
-            <button
-              key={kind}
-              onClick={() => startCreating(kind)}
-              className={`px-2 py-0.5 rounded text-[10px] transition-colors focus:outline-none
-                          select-none border
-                          ${creatingKind === kind
-                            ? "border-accent text-accent bg-accent/10"
-                            : "border-neutral-700 text-neutral-500 hover:text-neutral-200 hover:border-neutral-500"
-                          }`}
-            >
-              {label}
-            </button>
-          ))}
         </div>
       )}
 
@@ -732,8 +731,8 @@ export default function ListPane() {
                       text-xs text-neutral-600 shrink-0 select-none">
         <span>
           {isSearchMode
-            ? `${displayTotal} result${displayTotal !== 1 ? "s" : ""}`
-            : `${displayTotal} item${displayTotal !== 1 ? "s" : ""}`}
+            ? t("list.count.results", { n: displayTotal })
+            : t("list.count.items", { n: displayTotal })}
         </span>
         {!isSearchMode && totalPages > 1 && (
           <div className="flex items-center gap-2">
@@ -757,6 +756,93 @@ export default function ListPane() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// "New" menu: bookmark / folder / separator in the current folder
+// ---------------------------------------------------------------------------
+
+type NewKind = "bookmark" | "folder" | "separator";
+
+function NewMenu({
+  open,
+  onOpenChange,
+  disabled,
+  onPick,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  disabled: boolean;
+  onPick: (kind: NewKind) => void;
+}) {
+  const t = useT();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const kinds: NewKind[] = ["bookmark", "folder", "separator"];
+
+  useEffect(() => {
+    if (!open) return;
+    itemRefs.current[0]?.focus();
+    const onPointer = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) onOpenChange(false);
+    };
+    window.addEventListener("mousedown", onPointer);
+    return () => window.removeEventListener("mousedown", onPointer);
+  }, [open, onOpenChange]);
+
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    const i = itemRefs.current.findIndex((el) => el === document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = (i + (e.key === "ArrowDown" ? 1 : kinds.length - 1)) % kinds.length;
+      itemRefs.current[next]?.focus();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => onOpenChange(!open)}
+        className="flex items-center gap-1 px-2 py-1 rounded-md border border-neutral-800 text-xs
+                   text-neutral-300 hover:text-neutral-100 hover:border-neutral-700 disabled:opacity-40 transition-colors"
+      >
+        <PlusIcon className="w-3 h-3" />
+        {t("list.new")}
+        <ChevronDownIcon className="w-3 h-3 opacity-70" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={t("list.new")}
+          onKeyDown={onMenuKey}
+          className="absolute right-0 top-full mt-1 z-30 w-44 py-1 rounded-md border border-neutral-800
+                     bg-surface-2 shadow-lg shadow-black/30 animate-fade-in"
+        >
+          {kinds.map((kind, i) => (
+            <button
+              key={kind}
+              ref={(el) => { itemRefs.current[i] = el; }}
+              role="menuitem"
+              type="button"
+              onClick={() => onPick(kind)}
+              className="w-full text-left px-3 py-1.5 text-xs text-neutral-300 hover:bg-surface-3
+                         hover:text-neutral-100 focus:bg-surface-3 focus:outline-none"
+            >
+              {t(`list.new.${kind}`)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

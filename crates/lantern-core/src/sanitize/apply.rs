@@ -23,8 +23,6 @@
 //! Undoing pops from the undo stack, captures the current values as the redo
 //! entry, and applies the inverse writes.  Redoing is the mirror operation.
 
-use std::time::Instant;
-
 use thiserror::Error;
 
 use crate::error::{CoreError, Result};
@@ -65,62 +63,60 @@ impl Document {
             return Ok(());
         }
 
-        // Phase 1: verify all nodes exist and collect before-values.
-        // We do this before any writes so the document is never half-mutated.
-        let mut inverses: Vec<InverseChange> = Vec::with_capacity(approved.len());
+        // Validate every target first so a stale change set leaves the
+        // document untouched.
         for change in &approved {
-            let inv_kind = match &change.kind {
-                ChangeKind::SetField { field, .. } => {
-                    let value = read_field(&self.root, change.node_id, *field)
-                        .ok_or(ApplyError::NodeNotFound(change.node_id))?;
-                    InverseKind::WriteField {
-                        field: *field,
-                        value,
-                    }
-                }
-                ChangeKind::DeleteNode => {
-                    let (parent_id, index, snapshot) =
-                        find_node_with_parent(&self.root, change.node_id)
-                            .ok_or(ApplyError::NodeNotFound(change.node_id))?;
-                    InverseKind::RestoreNode {
-                        parent_id,
-                        index,
-                        snapshot: Box::new(snapshot),
-                    }
-                }
-                ChangeKind::SetFlag { flag, before, .. } => {
-                    read_flag(&self.root, change.node_id, *flag)
-                        .ok_or(ApplyError::NodeNotFound(change.node_id))?;
-                    InverseKind::WriteFlag {
-                        flag: *flag,
-                        value: *before,
-                    }
-                }
+            let id = change.node_id;
+            let exists = match &change.kind {
+                ChangeKind::SetField { field, .. } => read_field(&self.root, id, *field).is_some(),
+                ChangeKind::DeleteNode => find_node_with_parent(&self.root, id).is_some(),
+                ChangeKind::SetFlag { flag, .. } => read_flag(&self.root, id, *flag).is_some(),
             };
-            inverses.push(InverseChange {
-                node_id: change.node_id,
-                kind: inv_kind,
-            });
+            if !exists {
+                return Err(ApplyError::NodeNotFound(id));
+            }
         }
 
-        // Phase 2: apply writes.
+        // Capture each inverse just before its write, so it describes the
+        // tree as the earlier writes of this change set left it; undo then
+        // replays the inverses in reverse.  A change whose node an earlier
+        // change already removed (e.g. a bookmark inside a deleted folder) is
+        // skipped.
+        let mut inverses: Vec<InverseChange> = Vec::with_capacity(approved.len());
         for change in &approved {
-            match &change.kind {
-                ChangeKind::SetField { field, after, .. } => {
-                    write_field(&mut self.root, change.node_id, *field, after);
-                }
+            let id = change.node_id;
+            let kind = match &change.kind {
+                ChangeKind::SetField { field, after, .. } => read_field(&self.root, id, *field)
+                    .map(|value| {
+                        write_field(&mut self.root, id, *field, after);
+                        InverseKind::WriteField {
+                            field: *field,
+                            value,
+                        }
+                    }),
                 ChangeKind::DeleteNode => {
-                    take_node(&mut self.root, change.node_id);
+                    take_node(&mut self.root, id).map(|(parent_id, index, node)| {
+                        InverseKind::RestoreNode {
+                            parent_id,
+                            index,
+                            snapshot: Box::new(node),
+                        }
+                    })
                 }
                 ChangeKind::SetFlag { flag, after, .. } => {
-                    write_flag(&mut self.root, change.node_id, *flag, *after);
+                    read_flag(&self.root, id, *flag).map(|value| {
+                        write_flag(&mut self.root, id, *flag, *after);
+                        InverseKind::WriteFlag { flag: *flag, value }
+                    })
                 }
+            };
+            if let Some(kind) = kind {
+                inverses.push(InverseChange { node_id: id, kind });
             }
         }
 
         // Push undo entry; trim if over the limit.
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: cs.rule_set_name.clone(),
             inverses,
         };
@@ -145,28 +141,8 @@ impl Document {
             .pop()
             .ok_or_else(|| CoreError::InvalidOperation("nothing to undo".into()))?;
 
-        // Capture current values before restoring, so redo can re-apply.
-        let redo_inverses: Vec<InverseChange> = entry
-            .inverses
-            .iter()
-            .filter_map(|inv| {
-                capture_reinverse(&self.root, inv).map(|kind| InverseChange {
-                    node_id: inv.node_id,
-                    kind,
-                })
-            })
-            .collect();
-
-        // Apply the inverse writes (restore before-values).
-        for inv in &entry.inverses {
-            apply_inverse(&mut self.root, inv);
-        }
-
-        self.redo_stack.push(UndoEntry {
-            timestamp: Instant::now(),
-            rule_set_name: entry.rule_set_name,
-            inverses: redo_inverses,
-        });
+        let redo_entry = self.replay(entry);
+        self.redo_stack.push(redo_entry);
 
         self.dirty = !self.undo_stack.is_empty();
         self.stats = DocumentStats::from_root(&self.root);
@@ -183,28 +159,7 @@ impl Document {
             .pop()
             .ok_or_else(|| CoreError::InvalidOperation("nothing to redo".into()))?;
 
-        // Capture current values before re-applying, so undo still works.
-        let undo_inverses: Vec<InverseChange> = entry
-            .inverses
-            .iter()
-            .filter_map(|inv| {
-                capture_reinverse(&self.root, inv).map(|kind| InverseChange {
-                    node_id: inv.node_id,
-                    kind,
-                })
-            })
-            .collect();
-
-        // Apply the redo writes.
-        for inv in &entry.inverses {
-            apply_inverse(&mut self.root, inv);
-        }
-
-        let undo_entry = UndoEntry {
-            timestamp: Instant::now(),
-            rule_set_name: entry.rule_set_name,
-            inverses: undo_inverses,
-        };
+        let undo_entry = self.replay(entry);
         self.undo_stack.push(undo_entry);
         if self.undo_stack.len() > MAX_UNDO_ENTRIES {
             self.undo_stack.remove(0);
@@ -214,6 +169,28 @@ impl Document {
         self.stats = DocumentStats::from_root(&self.root);
 
         Ok(())
+    }
+
+    /// Apply `entry`'s inverses newest-first and return the entry that
+    /// reverses this replay (used for both undo and redo).
+    ///
+    /// Each re-inverse is captured just before its inverse is applied, so the
+    /// returned entry is again in "replay newest-first" order.
+    fn replay(&mut self, entry: UndoEntry) -> UndoEntry {
+        let mut inverses = Vec::with_capacity(entry.inverses.len());
+        for inv in entry.inverses.iter().rev() {
+            if let Some(kind) = capture_reinverse(&self.root, inv) {
+                inverses.push(InverseChange {
+                    node_id: inv.node_id,
+                    kind,
+                });
+            }
+            apply_inverse(&mut self.root, inv);
+        }
+        UndoEntry {
+            rule_set_name: entry.rule_set_name,
+            inverses,
+        }
     }
 
     /// Rename a node (bookmark title or folder name) and record an undoable entry.
@@ -239,7 +216,6 @@ impl Document {
         write_field(&mut self.root, node_id, field, &new_name);
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "rename".into(),
             inverses: vec![InverseChange {
                 node_id,
@@ -263,13 +239,10 @@ impl Document {
     ///
     /// Returns `Err` if the node is not found.
     pub fn delete_node(&mut self, node_id: NodeId) -> Result<()> {
-        let (parent_id, index, snapshot) = find_node_with_parent(&self.root, node_id)
+        let (parent_id, index, snapshot) = take_node(&mut self.root, node_id)
             .ok_or_else(|| CoreError::InvalidOperation(format!("node {node_id} not found")))?;
 
-        take_node(&mut self.root, node_id);
-
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "delete".into(),
             inverses: vec![InverseChange {
                 node_id,
@@ -325,7 +298,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "create".into(),
             inverses: vec![InverseChange {
                 node_id: new_id,
@@ -366,7 +338,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "create".into(),
             inverses: vec![InverseChange {
                 node_id: new_id,
@@ -399,7 +370,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "create".into(),
             inverses: vec![InverseChange {
                 node_id: new_id,
@@ -436,9 +406,18 @@ impl Document {
             folder_path(&self.root, new_parent_id).ok_or_else(|| {
                 CoreError::InvalidOperation(format!("folder {new_parent_id} not found"))
             })?;
+            // A folder cannot move into itself or its own subtree: the
+            // destination would be taken out of the tree along with it.
+            if let Some((_, _, Node::Folder(f))) = find_node_with_parent(&self.root, node_id) {
+                if folder_path(&f, new_parent_id).is_some() {
+                    return Err(CoreError::InvalidOperation(format!(
+                        "cannot move folder {node_id} into its own subtree"
+                    )));
+                }
+            }
         }
 
-        let node = take_node(&mut self.root, node_id).unwrap(); // safe: verified above
+        let (_, _, node) = take_node(&mut self.root, node_id).unwrap(); // safe: verified above
 
         if new_parent_id == 0 {
             let idx = new_index.min(self.root.children.len());
@@ -451,7 +430,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "move".into(),
             inverses: vec![InverseChange {
                 node_id,
@@ -559,17 +537,18 @@ fn write_to_bookmark(b: &mut Bookmark, field: Field, value: &str) {
     }
 }
 
-/// Remove and return the node with `node_id` from the tree rooted at `folder`.
+/// Remove the node with `node_id` from the tree rooted at `folder`, returning
+/// its parent folder id, its index within that parent, and the node itself.
 ///
 /// Returns `None` if the node was not found.
-fn take_node(folder: &mut Folder, node_id: NodeId) -> Option<Node> {
+fn take_node(folder: &mut Folder, node_id: NodeId) -> Option<(NodeId, usize, Node)> {
     if let Some(pos) = folder.children.iter().position(|n| n.id() == node_id) {
-        return Some(folder.children.remove(pos));
+        return Some((folder.id, pos, folder.children.remove(pos)));
     }
     for child in &mut folder.children {
         if let Node::Folder(f) = child {
-            if let Some(node) = take_node(f, node_id) {
-                return Some(node);
+            if let Some(found) = take_node(f, node_id) {
+                return Some(found);
             }
         }
     }
@@ -719,7 +698,7 @@ fn apply_inverse(root: &mut Folder, inv: &InverseChange) {
             to_parent_id,
             to_index,
         } => {
-            if let Some(node) = take_node(root, inv.node_id) {
+            if let Some((_, _, node)) = take_node(root, inv.node_id) {
                 insert_node_at(root, *to_parent_id, *to_index, node);
             }
         }
@@ -1273,6 +1252,101 @@ mod tests {
         doc.undo().unwrap();
         doc.undo().unwrap();
         assert_eq!(doc.root.children[0].as_bookmark().unwrap().title, "Google");
+    }
+
+    // ── regressions ───────────────────────────────────────────────────────
+
+    fn all_ids(folder: &Folder, out: &mut Vec<NodeId>) {
+        out.push(folder.id);
+        for child in &folder.children {
+            match child {
+                Node::Folder(f) => all_ids(f, out),
+                other => out.push(other.id()),
+            }
+        }
+    }
+
+    fn ids_of(folder: &Folder) -> Vec<NodeId> {
+        folder.children.iter().map(Node::id).collect()
+    }
+
+    fn approved_deletes(ids: &[NodeId]) -> ChangeSet {
+        let changes = ids
+            .iter()
+            .map(|&id| {
+                let mut c = crate::sanitize::treatment::Change::delete_node(id, "test", "test");
+                c.approved = true;
+                c
+            })
+            .collect();
+        ChangeSet {
+            rule_set_name: "test".into(),
+            changes,
+        }
+    }
+
+    #[test]
+    fn created_ids_never_collide_with_parsed_ids() {
+        let mut doc = crate::parser::parse(
+            br#"<DL><p>
+    <DT><A HREF="https://a.example/">A</A>
+    <DT><H3>F</H3>
+    <DL><p><DT><A HREF="https://b.example/">B</A></DL><p>
+</DL><p>"#,
+        )
+        .unwrap();
+        let mut existing = Vec::new();
+        all_ids(&doc.root, &mut existing);
+
+        let folder = doc.create_folder(0, "New".into()).unwrap();
+        let bookmark = doc
+            .create_bookmark(folder, "N".into(), "https://n.example/".into())
+            .unwrap();
+        let separator = doc.create_separator(0).unwrap();
+        for id in [folder, bookmark, separator] {
+            assert!(
+                !existing.contains(&id),
+                "id {id} reused from the parsed tree"
+            );
+        }
+    }
+
+    #[test]
+    fn undo_restores_positions_whatever_the_change_order() {
+        // root: [Google(100), Work(101), <sep>(103)]; delete Work before
+        // Google, i.e. not in document order.
+        let mut doc = make_doc();
+        let original = ids_of(&doc.root);
+        doc.apply(&approved_deletes(&[101, 100])).unwrap();
+        assert_eq!(ids_of(&doc.root), vec![103]);
+
+        doc.undo().unwrap();
+        assert_eq!(ids_of(&doc.root), original);
+        doc.redo().unwrap();
+        assert_eq!(ids_of(&doc.root), vec![103]);
+        doc.undo().unwrap();
+        assert_eq!(ids_of(&doc.root), original);
+    }
+
+    #[test]
+    fn undo_of_nested_deletes_does_not_duplicate_children() {
+        // Work(101) and its only child GitHub(102) deleted in one change set.
+        let mut doc = make_doc();
+        doc.apply(&approved_deletes(&[101, 102])).unwrap();
+        doc.undo().unwrap();
+        let work = doc.root.children[1].as_folder().unwrap();
+        assert_eq!(ids_of(work), vec![102]);
+        assert_eq!(doc.stats.bookmark_count, 2);
+    }
+
+    #[test]
+    fn move_folder_into_its_own_subtree_is_rejected() {
+        let mut doc = make_doc();
+        let sub = doc.create_folder(101, "Sub".into()).unwrap();
+        assert!(doc.move_node(101, 101, 0).is_err());
+        assert!(doc.move_node(101, sub, 0).is_err());
+        assert_eq!(child_titles(&doc), vec!["Google", "Work", "<sep>"]);
+        assert_eq!(doc.undo_stack.len(), 1); // only the create
     }
 
     // ── folder_path / folder_at_path helpers ──────────────────────────────

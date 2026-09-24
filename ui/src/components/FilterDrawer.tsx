@@ -120,7 +120,6 @@ export function FilterDrawer({ filter, onChange, showDepth, id }: FilterDrawerPr
               type="checkbox"
               checked={kindActive(k)}
               onChange={() => toggleKind(k)}
-              className="accent-amber-400"
             />
             <span className="capitalize text-neutral-400">{k}s</span>
           </label>
@@ -195,7 +194,6 @@ export function FilterDrawer({ filter, onChange, showDepth, id }: FilterDrawerPr
               type="checkbox"
               checked={schemeActive(s)}
               onChange={() => toggleScheme(s)}
-              className="accent-amber-400"
             />
             <span className="text-neutral-400 font-mono text-[10px]">{s}</span>
           </label>

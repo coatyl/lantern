@@ -1,38 +1,26 @@
-//! Background search indexing baseline (v0.0.8, NFR-P-4).
+//! Per-tab search index.
 //!
-//! [`SearchIndex`] is a per-tab inverted index keyed on lowercased token
-//! prefixes drawn from each bookmark's title and URL.  The application
-//! layer consults the index *before* invoking the linear matcher; the
-//! index narrows the candidate set to a small superset, the matcher then
-//! verifies each candidate.
+//! [`SearchIndex`] is an inverted index from lowercase character trigrams to
+//! the bookmarks whose title or URL contains them.  The application layer
+//! asks it for [`SearchIndex::candidates`] before running its substring or
+//! glob matcher, which then verifies each candidate.
 //!
-//! # Design
+//! # Correctness contract
 //!
-//! Each token (run of `[a-z0-9]+` after lowercasing the title and URL) is
-//! recorded together with its 3- and 4-prefix variants.  For a query string,
-//! the same tokenisation runs over the query; the resulting candidate set
-//! is the intersection of the postings for every query token, which gives
-//! AND semantics across whitespace-separated query terms.
+//! The candidate set is always a **superset** of the bookmarks the matcher
+//! would accept, so narrowing never hides a hit:
 //!
-//! Substring queries that match a token's prefix (e.g. `"lib"` against
-//! `"library"`) hit because we explicitly index 3- and 4-prefix variants.
-//! Substrings that fall in the middle of a token (e.g. `"brar"` against
-//! `"library"`) miss the index, but the linear-scan fall-through still
-//! handles them correctly because the matcher iterates the full document
-//! when [`SearchIndex::candidates`] returns `None`.
+//! - Text is lowercased and split into runs of ASCII alphanumerics; every
+//!   3-character window of every run is indexed.
+//! - A query is split the same way.  Any substring match of the query places
+//!   each of its runs inside a run of the bookmark's text, so every trigram
+//!   of every query run must be indexed for that bookmark.  Candidates are
+//!   the intersection of those trigrams' postings.
+//! - Query runs shorter than three characters (`"go"`) can match anywhere
+//!   inside a longer word and are ignored.  When no run is long enough the
+//!   index returns `None` and the caller scans the whole document.
 //!
-//! Regex mode skips the index entirely in this baseline.  The fallback
-//! linear scan keeps regex correct; the only cost is that regex queries
-//! over a 25 k document still run at scan speed.  A future slice may use
-//! `regex_syntax::hir::literal::Extractor` to extract literal hints and
-//! filter candidates the way substring/glob queries do.
-//!
-//! # Performance
-//!
-//! Build is < 50 ms for a 25 k-bookmark document on the v0.0.8 reference
-//! machine.  A query for a known-present token completes in well under
-//! 50 ms including the verification pass; the application-level search
-//! command stays under the PRD's NFR-P-4 150 ms budget at 25 k bookmarks.
+//! Regex queries do not use the index.
 
 use std::collections::HashMap;
 
@@ -40,152 +28,57 @@ use crate::model::document::Document;
 use crate::model::ids::NodeId;
 use crate::model::node::{Folder, Node};
 
-/// Per-bookmark cached lowercased text used by the verification pass.
-///
-/// `lib.rs` makes this `pub` so callers in `lantern-app` can read the
-/// pre-lowercased title / URL while iterating candidates rather than
-/// lower-casing them again on every match attempt.
-#[derive(Debug, Clone)]
-pub struct IndexedDoc {
-    pub title_lower: String,
-    pub url_lower: String,
-}
+/// Width of the character n-grams the index is keyed on.
+const NGRAM: usize = 3;
 
-/// Inverted index over bookmark titles + URLs.
-///
-/// Built lazily by `AppState` on the first query after a document mutation
-/// (or after the document is first opened).  See the module-level docs for
-/// the design and the tokenisation rules.
+type Trigram = [u8; NGRAM];
+
+/// Inverted index over bookmark titles and URLs; see the module docs.
 #[derive(Debug, Clone, Default)]
 pub struct SearchIndex {
-    /// Token (or prefix variant) → sorted list of `NodeId`s whose title or
-    /// URL contained the token.  Sorted so candidate intersection is a
-    /// linear merge.
-    postings: HashMap<String, Vec<NodeId>>,
-    /// Map from `NodeId` to its lowercased title + URL.  Used by the
-    /// verification pass: callers iterate the candidates returned by
-    /// [`Self::candidates`] and fetch the cached lowercased fields here.
-    docs: HashMap<NodeId, IndexedDoc>,
+    /// Trigram → sorted, deduplicated ids of the bookmarks containing it.
+    postings: HashMap<Trigram, Vec<NodeId>>,
 }
 
-/// Minimum prefix length emitted when expanding a token.  A token of
-/// length 1 or 2 is indexed as itself (the full token); a token of length
-/// 3 or more is indexed at every prefix of length
-/// [`MIN_PREFIX`]..=[`MAX_PREFIX`] plus the full token, so substring
-/// queries like `"lib"` hit `"library"`.
-const MIN_PREFIX: usize = 3;
-const MAX_PREFIX: usize = 4;
-
 impl SearchIndex {
-    /// Walk `doc` and produce a fresh index.
-    ///
-    /// Allocations are kept to the postings + docs hash maps and the
-    /// per-bookmark `IndexedDoc`; intermediate token strings are reused
-    /// as the iteration walks the tree.
+    /// Index every bookmark in `doc`.
     pub fn build(doc: &Document) -> Self {
-        // Pre-size the per-bookmark map from the cached document stats so
-        // we don't pay re-hashing cost once the build gets going.  The
-        // postings map's distinct-token count is hard to predict ahead of
-        // time, so we let it grow naturally.
-        let n = doc.stats.bookmark_count as usize;
-        let mut idx = Self {
-            postings: HashMap::new(),
-            docs: HashMap::with_capacity(n.max(64)),
-        };
-        index_folder(&doc.root, &mut idx);
-        // Sort each posting list so candidate intersection runs in
-        // linear time per token.
-        for ids in idx.postings.values_mut() {
+        let mut postings = HashMap::new();
+        index_folder(&doc.root, &mut postings);
+        for ids in postings.values_mut() {
             ids.sort_unstable();
             ids.dedup();
         }
-        idx
+        Self { postings }
     }
 
-    /// Return the bookmark count this index was built over.
-    pub fn len(&self) -> usize {
-        self.docs.len()
-    }
-
-    /// True when no bookmarks were indexed.
-    pub fn is_empty(&self) -> bool {
-        self.docs.is_empty()
-    }
-
-    /// Look up the cached lowercased title + URL for a candidate `NodeId`.
-    pub fn doc(&self, node_id: NodeId) -> Option<&IndexedDoc> {
-        self.docs.get(&node_id)
-    }
-
-    /// Narrow to a superset of `NodeId`s whose title or URL contains
-    /// every whitespace-separated token in `query`.
+    /// A sorted superset of the bookmarks whose title or URL can match
+    /// `query` (see the module docs).
     ///
-    /// Returns `None` when the index can't help, currently:
-    /// - the query is empty after trimming, or
-    /// - the query produces no tokenisable terms (e.g. `"!!!"`).
-    ///
-    /// Returns `Some(empty)` when at least one query token matches no
-    /// posting at all: safe to short-circuit the search to "no hits".
+    /// Returns `None` when the index cannot narrow the search (no
+    /// alphanumeric run of three or more characters in the query), and
+    /// `Some(empty)` when some query trigram occurs in no bookmark at all.
     pub fn candidates(&self, query: &str) -> Option<Vec<NodeId>> {
-        let trimmed = query.trim();
-        if trimmed.is_empty() {
-            return None;
-        }
-
-        // Reuse the same tokenisation we used at build time, but DO NOT
-        // expand prefixes; the query token itself is matched against the
-        // pre-expanded postings, so a 2-character query like "go" only
-        // hits short tokens whereas a 3+ char query hits via the prefix
-        // entries we generated at build time.
-        let lower = trimmed.to_lowercase();
-        let query_tokens: Vec<&str> = tokens_of(&lower).collect();
-
-        if query_tokens.is_empty() {
-            return None;
-        }
-
-        // For each query token, look up the posting list.  Take the
-        // shortest list as the seed so the intersection scans the
-        // smallest set first.
-        let mut postings_for_query: Vec<&[NodeId]> = Vec::with_capacity(query_tokens.len());
-        for qt in &query_tokens {
-            match self.lookup_posting(qt) {
-                Some(ids) => postings_for_query.push(ids),
-                None => {
-                    // No matches for this token: the AND result is empty.
-                    return Some(Vec::new());
-                }
+        let lower = query.to_lowercase();
+        let mut lists: Vec<&[NodeId]> = Vec::new();
+        for gram in tokens_of(&lower).flat_map(trigrams) {
+            match self.postings.get(&gram) {
+                Some(ids) => lists.push(ids),
+                None => return Some(Vec::new()),
             }
         }
 
-        // Sort by ascending length so the seed is the shortest set.
-        postings_for_query.sort_by_key(|p| p.len());
-        let mut iter = postings_for_query.into_iter();
-        let seed = iter.next().expect("query_tokens non-empty");
-        let mut acc: Vec<NodeId> = seed.to_vec();
-        for next in iter {
-            // Linear merge of sorted Vec<NodeId> producing the intersection.
-            acc = intersect_sorted(&acc, next);
+        // Intersect starting from the shortest list.
+        lists.sort_unstable_by_key(|ids| ids.len());
+        let (first, rest) = lists.split_first()?;
+        let mut acc = first.to_vec();
+        for ids in rest {
             if acc.is_empty() {
                 break;
             }
+            acc = intersect_sorted(&acc, ids);
         }
         Some(acc)
-    }
-
-    /// Resolve a query token (without prefix expansion) against the
-    /// postings.  Tokens shorter than [`MIN_PREFIX`] only match short
-    /// full tokens.  Tokens of length [`MIN_PREFIX`]..=[`MAX_PREFIX`] hit
-    /// the prefix entries we generated at build time.  Longer tokens are
-    /// truncated to [`MAX_PREFIX`] for lookup; the verification pass in
-    /// the app layer is responsible for the precise containment check.
-    fn lookup_posting(&self, token: &str) -> Option<&[NodeId]> {
-        let key: &str = if token.len() > MAX_PREFIX {
-            &token[..MAX_PREFIX]
-        } else {
-            token
-        };
-        self.postings.get(key).map(|v| v.as_slice())
     }
 }
 
@@ -193,78 +86,47 @@ impl SearchIndex {
 // Indexing helpers
 // ---------------------------------------------------------------------------
 
-fn index_folder(folder: &Folder, idx: &mut SearchIndex) {
+fn index_folder(folder: &Folder, postings: &mut HashMap<Trigram, Vec<NodeId>>) {
     for child in &folder.children {
         match child {
             Node::Bookmark(b) => {
-                let title_lower = b.title.to_lowercase();
-                let url_lower = b.url.as_str().to_lowercase();
-                index_text(b.id, &title_lower, idx);
-                index_text(b.id, &url_lower, idx);
-                idx.docs.insert(
-                    b.id,
-                    IndexedDoc {
-                        title_lower,
-                        url_lower,
-                    },
-                );
+                for text in [b.title.as_str(), b.url.as_str()] {
+                    let lower = text.to_lowercase();
+                    for gram in tokens_of(&lower).flat_map(trigrams) {
+                        let ids = postings.entry(gram).or_default();
+                        // Skip repeats of the same bookmark; `build` dedups
+                        // anything else.
+                        if ids.last() != Some(&b.id) {
+                            ids.push(b.id);
+                        }
+                    }
+                }
             }
-            Node::Folder(f) => index_folder(f, idx),
-            _ => {}
+            Node::Folder(f) => index_folder(f, postings),
+            Node::Separator(_) => {}
         }
     }
 }
 
-/// Push `node_id` into the postings list for every token + 3/4-prefix
-/// found in `text`.  `text` must already be lowercased.
-///
-/// Duplicate keys are tolerated: `SearchIndex::build` runs a
-/// `sort_unstable + dedup` pass on every posting list once indexing is
-/// complete, which is significantly cheaper than maintaining a per-node
-/// hash set during the walk.
-fn index_text(node_id: NodeId, text: &str, idx: &mut SearchIndex) {
-    for tok in tokens_of(text) {
-        // Index the full token …
-        push_posting(&mut idx.postings, tok, node_id);
-
-        // … and every prefix of length [MIN_PREFIX, min(MAX_PREFIX, len-1)].
-        // We intentionally skip prefixes equal to the full token; the
-        // full-token push above already covered that case.
-        let max = MAX_PREFIX.min(tok.len().saturating_sub(1));
-        for n in MIN_PREFIX..=max {
-            // Char-boundary aware slice: tokens are ASCII alnum (see
-            // `tokens_of`) so byte-indexing is safe here.
-            push_posting(&mut idx.postings, &tok[..n], node_id);
-        }
-    }
-}
-
-/// Append `node_id` to the posting list for `key`, allocating a new
-/// `String` only when the key is unknown.
-///
-/// Avoids the `entry(key.to_owned())` allocation that every call would
-/// otherwise pay even on the lookup-hit path; the hot path becomes a
-/// hash probe with a `&str` key plus a single `Vec::push`.
-fn push_posting(postings: &mut HashMap<String, Vec<NodeId>>, key: &str, node_id: NodeId) {
-    if let Some(list) = postings.get_mut(key) {
-        list.push(node_id);
-        return;
-    }
-    postings.insert(key.to_owned(), vec![node_id]);
-}
-
-/// Tokenise `text` into runs of `[a-z0-9]+`.  `text` must already be
-/// lowercased; non-alphanumeric characters split tokens.  Returns
-/// borrowed slices to avoid allocation in the hot path.
-fn tokens_of(text: &str) -> impl Iterator<Item = &str> + '_ {
+/// Runs of ASCII alphanumerics in `text` (which must already be lowercase).
+fn tokens_of(text: &str) -> impl Iterator<Item = &str> {
     text.split(|c: char| !c.is_ascii_alphanumeric())
         .filter(|t| !t.is_empty())
 }
 
-/// Linear merge intersection of two sorted `Vec<NodeId>` slices.
+/// Every [`NGRAM`]-byte window of an ASCII `token`; none if it is shorter.
+fn trigrams(token: &str) -> impl Iterator<Item = Trigram> + '_ {
+    token.as_bytes().windows(NGRAM).map(|w| {
+        let mut gram = [0; NGRAM];
+        gram.copy_from_slice(w);
+        gram
+    })
+}
+
+/// Intersection of two sorted id lists.
 fn intersect_sorted(a: &[NodeId], b: &[NodeId]) -> Vec<NodeId> {
     let mut out = Vec::new();
-    let (mut i, mut j) = (0usize, 0usize);
+    let (mut i, mut j) = (0, 0);
     while i < a.len() && j < b.len() {
         match a[i].cmp(&b[j]) {
             std::cmp::Ordering::Equal => {
@@ -337,14 +199,12 @@ mod tests {
     }
 
     #[test]
-    fn empty_document_has_zero_len_and_returns_some_empty() {
+    fn empty_document_returns_some_empty() {
         let doc = make_doc(Vec::new());
         let idx = SearchIndex::build(&doc);
-        assert_eq!(idx.len(), 0);
-        // The query produces tokens but no postings exist; Some(empty)
+        // The query produces trigrams but no postings exist; Some(empty)
         // tells the caller "no hits, skip the linear scan".
-        let candidates = idx.candidates("foo");
-        assert_eq!(candidates, Some(Vec::new()));
+        assert_eq!(idx.candidates("foo"), Some(Vec::new()));
     }
 
     #[test]
@@ -447,7 +307,7 @@ mod tests {
         let idx = SearchIndex::build(&doc);
         let elapsed = start.elapsed();
 
-        assert_eq!(idx.len(), N as usize);
+        assert_eq!(idx.candidates("sample").map(|c| c.len()), Some(N as usize));
         eprintln!(
             "SearchIndex::build over 25k bookmarks: {} ms",
             elapsed.as_millis()
@@ -498,6 +358,24 @@ mod tests {
             "query over 25k bookmarks took {} ms (target < 50 ms)",
             elapsed.as_millis()
         );
+    }
+
+    #[test]
+    fn short_and_mid_word_queries_still_find_their_bookmarks() {
+        // Linear substring search finds "go" in "Google" / "Algorithms" and
+        // "brar" in "library"; the index must never narrow those away.
+        let doc = make_doc(vec![
+            make_bookmark(1, "Google", "https://www.google.com/"),
+            make_bookmark(2, "Algorithms", "https://example.com/algo"),
+            make_bookmark(3, "Local library", "https://example.org/"),
+        ]);
+        let idx = SearchIndex::build(&doc);
+        assert_eq!(idx.candidates("go"), None, "too short to narrow");
+        assert_eq!(idx.candidates("brar"), Some(vec![3]));
+        assert_eq!(idx.candidates("ogl"), Some(vec![1]));
+        assert_eq!(idx.candidates("orith"), Some(vec![2]));
+        // Mixed: the short run is ignored, the long one still narrows.
+        assert_eq!(idx.candidates("go library"), Some(vec![3]));
     }
 
     #[test]

@@ -1,20 +1,18 @@
 /**
- * Right pane: selected item details + sanitize controls + change-set review.
+ * Right pane: selected item details + sanitize controls.
  *
- * v0.0.1:
- *  - When an item is selected: title, URL (with copy + open), dates
- *  - Rule set picker (Minimal clean / Aggressive scrub)
- *  - Sanitize button + inline PreviewPanel for reviewing proposed changes
- *
- * v0.0.3:
- *  - Rule set picker populated from disk via ipc.listRuleSets()
- *  - "Manage…" button opens the RuleSetEditorModal
+ * Running a pass hands the proposed change set to the review surface
+ * (`ReviewPane`), which takes over the list and detail columns until the
+ * user applies or discards it.
  */
 
 import { useState, useRef, useEffect } from "react";
+import { RUN_PASS_EVENT } from "../components/paletteCommands";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useDocuments } from "../state/documents";
+import { useToast } from "../hooks/useToast";
+import { useT } from "../i18n/I18nProvider";
 import { ipc } from "../ipc";
 import {
   DownloadIcon,
@@ -23,23 +21,30 @@ import {
   TrashIcon,
 } from "../components/Icons";
 import { RuleSetEditorModal } from "../components/RuleSetEditorModal";
-import { PreviewPanel } from "../components/PreviewPanel";
 import { useRuleSetList, BUILTIN_DESCRIPTIONS } from "../hooks/useRuleSetList";
-import type { ChangeSetPreview, FolderItem } from "../ipc/types";
+import type { FolderItem } from "../ipc/types";
+
+type PassScope = "document" | "folder";
 
 // ---------------------------------------------------------------------------
 
 export default function DetailPane() {
-  const { activeTab, listPage, selectedItem, pendingDelete, setPendingDelete,
-          refreshTree, refreshList } = useDocuments();
+  const t = useT();
+  const { toast } = useToast();
+  const { activeTab, tabs, selectedItem, pendingDelete, setPendingDelete,
+          refreshTree, refreshList, folderStack, openReview } = useDocuments();
+  const activeInfo = tabs.find((tab) => tab.id === activeTab) ?? null;
 
   const { summaries, refresh: refreshRuleSets } = useRuleSetList();
 
   const [ruleSetName, setRuleSetName] = useState<string>("Aggressive scrub");
-  const [preview, setPreview] = useState<ChangeSetPreview | null>(null);
+  const [scope, setScope] = useState<PassScope>("document");
   const [running, setRunning] = useState(false);
-  const [report, setReport] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+
+  // "This folder" only means something below the root.
+  const currentFolder = folderStack.at(-1) ?? null;
+  const effectiveScope: PassScope = currentFolder ? scope : "document";
 
   // Keep ruleSetName valid when summaries update (e.g. user deletes active set).
   useEffect(() => {
@@ -58,21 +63,35 @@ export default function DetailPane() {
 
   const handleRunPass = async () => {
     if (!activeTab) return;
+    const folder = effectiveScope === "folder" ? currentFolder : null;
+    const scopeLabel = folder
+      ? t("review.scope.folder", { name: folder.name })
+      : t("review.scope.document");
     setRunning(true);
-    setReport(null);
     try {
-      const p = await ipc.runPass(activeTab, ruleSetName);
-      if (p.changes.length === 0) {
-        setReport("No changes proposed; document is already clean.");
+      const preview = await ipc.runPass(activeTab, ruleSetName, folder?.id ?? null);
+      if (preview.changes.length === 0) {
+        toast(t("review.nothing", { scope: scopeLabel, ruleSet: ruleSetName }), "info");
       } else {
-        setPreview(p);
+        openReview({ tabId: activeTab, preview, scopeLabel });
       }
     } catch (e) {
-      setReport(`Error: ${String(e)}`);
+      toast(String(e), "error");
     } finally {
       setRunning(false);
     }
   };
+
+  const handleRunPassRef = useRef(handleRunPass);
+  handleRunPassRef.current = handleRunPass;
+
+  useEffect(() => {
+    const onRunPass = () => {
+      void handleRunPassRef.current();
+    };
+    window.addEventListener(RUN_PASS_EVENT, onRunPass);
+    return () => window.removeEventListener(RUN_PASS_EVENT, onRunPass);
+  }, []);
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
@@ -100,11 +119,36 @@ export default function DetailPane() {
             await Promise.all([refreshTree(), refreshList()]);
           }}
         />
-      ) : (
-        <div className="px-3 py-4 text-xs text-neutral-600 border-b border-neutral-800 shrink-0">
-          Select an item to see details.
-        </div>
-      )}
+      ) : activeInfo ? (
+        <section className="p-3 border-b border-neutral-800 shrink-0 space-y-2">
+          <span className="text-[10px] uppercase tracking-wider text-neutral-600 font-semibold">
+            {t("detail.document")}
+          </span>
+          <p className="text-sm text-neutral-100 font-medium break-words">{activeInfo.title}</p>
+          {activeInfo.path && (
+            <p className="text-[11px] text-neutral-500 break-all" title={activeInfo.path}>
+              {activeInfo.path}
+            </p>
+          )}
+          <dl className="grid grid-cols-3 gap-2 pt-1">
+            {(
+              [
+                ["detail.stat.bookmarks", activeInfo.stats.bookmark_count],
+                ["detail.stat.folders", activeInfo.stats.folder_count],
+                ["detail.stat.separators", activeInfo.stats.separator_count],
+              ] as const
+            ).map(([key, n]) => (
+              <div key={key} className="rounded-md bg-surface-2 px-2 py-1.5">
+                <dd className="text-sm text-neutral-100 tabular-nums">{n.toLocaleString()}</dd>
+                <dt className="text-[10px] text-neutral-500">{t(key)}</dt>
+              </div>
+            ))}
+          </dl>
+          <p className="text-[11px] text-neutral-500 leading-snug">
+            {activeInfo.dirty ? t("detail.edited") : t("detail.selectHint")}
+          </p>
+        </section>
+      ) : null}
 
       {/* ── Sanitize section ─────────────────────────────────────────────── */}
       <section className="p-3 border-b border-neutral-800 shrink-0">
@@ -132,10 +176,7 @@ export default function DetailPane() {
           </div>
           <select
             value={ruleSetName}
-            onChange={(e) => {
-              setRuleSetName(e.target.value);
-              setReport(null);
-            }}
+            onChange={(e) => setRuleSetName(e.target.value)}
             disabled={running || !activeTab}
             className="w-full bg-surface-2 border border-neutral-700 rounded px-2 py-1
                        text-xs text-neutral-200 focus:outline-none focus:ring-1
@@ -154,41 +195,53 @@ export default function DetailPane() {
           )}
         </div>
 
+        {/* Scope: whole document, or the folder currently shown in the list */}
+        <div className="mb-2">
+          <span className="block text-[10px] text-neutral-600 uppercase tracking-wider mb-1">
+            {t("detail.scope")}
+          </span>
+          <div role="radiogroup" aria-label={t("detail.scope")} className="grid grid-cols-2 gap-1">
+            {(["document", "folder"] as const).map((value) => {
+              const disabled = value === "folder" && !currentFolder;
+              const checked = effectiveScope === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={checked}
+                  disabled={disabled || running}
+                  onClick={() => setScope(value)}
+                  title={value === "folder" && currentFolder ? currentFolder.name : undefined}
+                  className={`px-2 py-1 rounded border text-[11px] truncate transition-colors
+                              disabled:opacity-40 ${
+                                checked
+                                  ? "border-accent/60 bg-accent/10 text-accent"
+                                  : "border-neutral-800 text-neutral-400 hover:text-neutral-200"
+                              }`}
+                >
+                  {value === "document"
+                    ? t("detail.scope.document")
+                    : currentFolder
+                      ? currentFolder.name
+                      : t("detail.scope.folder")}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <button
           onClick={handleRunPass}
           disabled={running || !activeTab}
           className="w-full py-1.5 rounded bg-accent hover:bg-accent-hover
-                     disabled:opacity-40 text-neutral-950 font-medium text-xs
+                     disabled:opacity-40 text-on-accent font-medium text-xs
                      transition-colors focus:outline-none focus-visible:ring-2
                      focus-visible:ring-accent"
         >
           {running ? "Analysing…" : "Run pass"}
         </button>
-
-        {report && (
-          <p className="mt-2 text-xs text-neutral-500 leading-snug">{report}</p>
-        )}
       </section>
-
-      {/* ── Stats ────────────────────────────────────────────────────────── */}
-      {listPage && (
-        <section className="px-3 py-2 text-xs text-neutral-600 border-b border-neutral-800 shrink-0">
-          {listPage.total} item{listPage.total !== 1 ? "s" : ""} in current folder
-        </section>
-      )}
-
-      {/* ── Change-set preview overlay ───────────────────────────────────── */}
-      {preview && (
-        <PreviewPanel
-          preview={preview}
-          tabId={activeTab!}
-          onDone={(msg) => {
-            setPreview(null);
-            setReport(msg);
-          }}
-          onCancel={() => setPreview(null)}
-        />
-      )}
 
       {/* ── Rule-set editor modal ────────────────────────────────────────── */}
       <RuleSetEditorModal
@@ -376,7 +429,7 @@ function ItemDetail({
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="flex-1 py-0.5 rounded bg-danger hover:bg-danger/80 text-white
+              className="flex-1 py-0.5 rounded bg-danger hover:bg-danger/80 text-on-danger
                          text-[10px] font-medium transition-colors disabled:opacity-40
                          focus:outline-none"
             >

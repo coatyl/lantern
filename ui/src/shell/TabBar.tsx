@@ -43,7 +43,8 @@ interface ContextMenuState {
 
 export default function TabBar() {
   const t = useT();
-  const { tabs, activeTab, setActiveTab, closeTab } = useDocuments();
+  const { tabs, activeTab, setActiveTab, requestClose } = useDocuments();
+  const closeTab = (id: TabId) => void requestClose([id]);
   // One ref per tab control so we can move focus on arrow-key navigation.
   const tabRefs = useRef<Map<TabId, HTMLButtonElement | null>>(new Map());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -85,25 +86,17 @@ export default function TabBar() {
     requestAnimationFrame(() => focusTab(nextTab.id));
   };
 
-  // ── Close helpers used by context-menu items.  We loop over `closeTab`
-  //    rather than introducing a `closeMany` IPC because the close call
-  //    is already cheap and serial closure means a single refresh pass
-  //    runs for each one (preserves the existing redraw semantics). ────
-  const closeOthers = (keepId: TabId) => {
-    for (const tab of tabs) {
-      if (tab.id !== keepId) closeTab(tab.id);
-    }
-  };
+  // ── Close helpers used by context-menu items.  One request per action so
+  //    edited tabs are confirmed together. ─────────────────────────────────
+  const closeOthers = (keepId: TabId) =>
+    void requestClose(tabs.filter((t) => t.id !== keepId).map((t) => t.id));
 
   const closeToRight = (afterId: TabId) => {
     const idx = tabs.findIndex((t) => t.id === afterId);
-    if (idx < 0) return;
-    for (const tab of tabs.slice(idx + 1)) closeTab(tab.id);
+    if (idx >= 0) void requestClose(tabs.slice(idx + 1).map((t) => t.id));
   };
 
-  const closeAll = () => {
-    for (const tab of tabs) closeTab(tab.id);
-  };
+  const closeAll = () => void requestClose(tabs.map((t) => t.id));
 
   const buildContextItems = (tabId: TabId): ContextMenuItem[] => {
     const idx = tabs.findIndex((t) => t.id === tabId);

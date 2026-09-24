@@ -18,5 +18,7 @@ export function getCurrentWindow() {
     isMinimized: () => Promise.resolve(false),
     isFocused: () => Promise.resolve(true),
     setFocus: noop,
+    destroy: noop,
+    onCloseRequested: () => Promise.resolve(() => {}),
   };
 }

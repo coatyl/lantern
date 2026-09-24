@@ -1942,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "lantern-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap 2.14.0",
  "lantern-core",
@@ -1965,7 +1965,7 @@ dependencies = [
 
 [[package]]
 name = "lantern-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1978,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "lantern-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "html5ever 0.27.0",
@@ -1986,6 +1986,8 @@ dependencies = [
  "markup5ever_rcdom",
  "proptest",
  "regex",
+ "serde",
+ "serde_json",
  "thiserror 1.0.69",
  "toml 0.8.2",
  "url",
@@ -1993,12 +1995,10 @@ dependencies = [
 
 [[package]]
 name = "lantern-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "chrono",
  "lantern-core",
  "serde",
- "serde_json",
  "tempfile",
  "thiserror 1.0.69",
  "toml 0.8.2",
@@ -2006,7 +2006,7 @@ dependencies = [
 
 [[package]]
 name = "lantern-net"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures",
  "reqwest 0.12.28",

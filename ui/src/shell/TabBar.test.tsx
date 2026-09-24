@@ -1,7 +1,7 @@
 /**
  * TabBar: pointer-extras tests for v0.0.11 QoL slice 2.
  *
- *   1. Middle-click on a tab calls `closeTab` with that tab's id.
+ *   1. Middle-click on a tab asks to close that tab.
  *   2. Right-click opens the context menu (one menuitem visible).
  *   3. Selecting "Close other tabs" closes every tab except the right-clicked one.
  */
@@ -23,7 +23,7 @@ interface StoreSnapshot {
   tabs: TabSnapshot[];
   activeTab: number | null;
   setActiveTab: (id: number) => void;
-  closeTab: (id: number) => void;
+  requestClose: (ids: number[]) => Promise<void>;
 }
 
 let storeState: StoreSnapshot;
@@ -56,12 +56,12 @@ beforeEach(() => {
     ],
     activeTab: 1,
     setActiveTab: vi.fn(),
-    closeTab: vi.fn(),
+    requestClose: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 describe("TabBar: pointer extras (v0.0.11)", () => {
-  it("middle-click on a tab calls closeTab with that tab's id", () => {
+  it("middle-click on a tab asks to close that tab", () => {
     renderTabBar();
 
     const betaTab = screen.getByRole("tab", { name: /Beta/ });
@@ -72,8 +72,8 @@ describe("TabBar: pointer extras (v0.0.11)", () => {
       new MouseEvent("auxclick", { button: 1, bubbles: true, cancelable: true }),
     );
 
-    expect(storeState.closeTab).toHaveBeenCalledTimes(1);
-    expect(storeState.closeTab).toHaveBeenCalledWith(2);
+    expect(storeState.requestClose).toHaveBeenCalledTimes(1);
+    expect(storeState.requestClose).toHaveBeenCalledWith([2]);
   });
 
   it("right-click opens the context menu", async () => {
@@ -105,11 +105,9 @@ describe("TabBar: pointer extras (v0.0.11)", () => {
     });
     await user.click(closeOthers);
 
-    // closeTab called for every tab except the right-clicked id (2).
-    const calls = (storeState.closeTab as ReturnType<typeof vi.fn>).mock.calls.flat();
-    expect(calls).toContain(1);
-    expect(calls).toContain(3);
-    expect(calls).not.toContain(2);
-    expect(calls).toHaveLength(2);
+    // One request covering every tab except the right-clicked one (2), so
+    // edited tabs are confirmed together.
+    expect(storeState.requestClose).toHaveBeenCalledTimes(1);
+    expect(storeState.requestClose).toHaveBeenCalledWith([1, 3]);
   });
 });

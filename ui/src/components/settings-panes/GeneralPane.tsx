@@ -125,7 +125,7 @@ export function GeneralPane({ settings, setSettings }: GeneralPaneProps) {
                 s ? { ...s, recent_files_max: Number(e.target.value) } : s,
               )
             }
-            className="flex-1 accent-amber-400"
+            className="flex-1"
           />
           <span className="w-10 text-center text-xs text-neutral-300 shrink-0">
             {settings.recent_files_max === 0

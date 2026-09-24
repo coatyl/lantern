@@ -83,26 +83,16 @@ export function AboutPane() {
             </dd>
           </div>
           <div className="flex">
-            <dt className="w-32 shrink-0 text-neutral-500">ADR index</dt>
-            <dd className="text-neutral-200 font-mono break-all">
-              {info.adr_index_path}
-            </dd>
-          </div>
-          <div className="flex">
-            <dt className="w-32 shrink-0 text-neutral-500">SBOM</dt>
+            <dt className="w-32 shrink-0 text-neutral-500">Source</dt>
             <dd>
-              {/* TODO: replace with the real SBOM URL once releases land */}
               <a
-                href="https://github.com/<org>/lantern/releases"
+                href="https://github.com/coatyl/lantern/releases"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent underline focus-visible:ring-1 focus-visible:ring-accent rounded"
               >
-                Software bill of materials
+                Releases and source code
               </a>
-              <span className="ml-2 text-xs text-neutral-500">
-                (generated per release)
-              </span>
             </dd>
           </div>
         </dl>

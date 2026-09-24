@@ -11,6 +11,8 @@ export interface VolumePresence {
   path: string;
   name: string;
   directory: string;
+  /** "html" for Netscape exports, "chrome" for Chrome's Bookmarks JSON. */
+  format: "html" | "chrome";
   /** ISO or display string; omitted when the backend only has a path. */
   lastOpened?: string;
 }
@@ -20,5 +22,6 @@ export function parseVolumePath(path: string): VolumePresence {
   const parts = normalized.split("/").filter((part) => part.length > 0);
   const name = parts.pop() ?? path;
   const directory = parts.join("/");
-  return { path, name, directory };
+  const format = /\.html?$/i.test(name) ? "html" : "chrome";
+  return { path, name, directory, format };
 }

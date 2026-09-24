@@ -51,7 +51,6 @@ beforeEach(() => {
     rust_version: "1.82.0",
     git_commit: null,
     license: "MIT",
-    adr_index_path: "adrs/",
     signed: false,
   });
 });

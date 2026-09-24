@@ -28,15 +28,12 @@ vi.mock("../ipc", () => ({
 }));
 
 vi.mock("../state/documents", () => {
-  const useDocuments = Object.assign(() => store, {
-    getState: () => store,
-  });
+  const useDocuments = Object.assign(
+    (selector?: (s: typeof store) => unknown) => (selector ? selector(store) : store),
+    { getState: () => store },
+  );
   return { useDocuments };
 });
-
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi.fn().mockResolvedValue(null),
-}));
 
 const RECENTS = [
   "C:/lantern/test/fixtures/small.html",
@@ -44,10 +41,10 @@ const RECENTS = [
   "C:/Users/fixture/Downloads/chrome-bookmarks.html",
 ];
 
-function renderHome(onOpen = vi.fn().mockResolvedValue(undefined)) {
+function renderHome(onOpenPaths = vi.fn().mockResolvedValue(undefined)) {
   return render(
     <I18nProvider locale="en">
-      <LibraryHome onOpen={onOpen} />
+      <LibraryHome onOpenPaths={onOpenPaths} onPickFiles={vi.fn().mockResolvedValue(undefined)} />
     </I18nProvider>,
   );
 }
@@ -95,6 +92,7 @@ describe("LibraryHome", () => {
     expect(screen.getByText("C:/Users/fixture/Documents")).toBeInTheDocument();
     expect(screen.getByText("chrome-bookmarks.html")).toBeInTheDocument();
     expect(screen.getByText("Most recent")).toBeInTheDocument();
+    expect(screen.getAllByText("HTML export")).toHaveLength(3);
     expect(
       screen.queryByRole("heading", { name: "Your library is empty" }),
     ).not.toBeInTheDocument();
@@ -112,31 +110,25 @@ describe("LibraryHome", () => {
     );
 
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith(
+    expect(onOpen).toHaveBeenCalledWith([
       "C:/Users/fixture/Documents/bookmarks-firefox.html",
-    );
+    ]);
   });
 
-  it("focuses an already-open tab instead of opening a duplicate", async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn().mockResolvedValue(undefined);
+  it("marks volumes that are already open in a tab", async () => {
     store.tabs = [
       {
         id: 7,
         title: "small.html",
-        path: "C:/lantern/test/fixtures/small.html",
+        path: "C:\\lantern\\test\\fixtures\\small.html",
         dirty: false,
         stats: { bookmark_count: 1, folder_count: 1, separator_count: 0 },
       },
     ];
     vi.mocked(ipc.listRecentFiles).mockResolvedValue(RECENTS);
-    renderHome(onOpen);
-
+    renderHome();
     await screen.findByText("small.html");
-    await user.click(screen.getByRole("button", { name: "Open small.html" }));
-
-    expect(store.setActiveTab).toHaveBeenCalledWith(7);
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.getByText("Open")).toBeInTheDocument();
   });
 
   it("keeps the crash-recovery banner on both empty and populated homes", async () => {

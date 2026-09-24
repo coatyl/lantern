@@ -1,5 +1,5 @@
 /**
- * Localisation types: see NFR-L-1 in `private/docs/01-PRD.md`.
+ * Localisation types.
  *
  * The translation table is intentionally a flat `Record<string, string>`
  * keyed by dot-separated paths.  This keeps the shape the same across
