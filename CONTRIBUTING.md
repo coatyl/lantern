@@ -93,10 +93,26 @@ Fuzz targets for the parser and URL treatments live in `crates/lantern-core/fuzz
 
 Colours are theme-aware CSS variables defined in `ui/src/index.css` and mapped in `ui/tailwind.config.js`. Use those tokens rather than raw colours. User-facing strings go in `ui/src/i18n/en.ts` (see `ui/src/i18n/README.md` for adding a locale). The app must stay usable from the keyboard alone.
 
+## Branches
+
+One branch per pull request, named for what it changes:
+
+| Kind | Pattern | Examples |
+|---|---|---|
+| Feature | `feat/<scope>-<topic>` | `feat/io-firefox-places`, `feat/ui-review-filters` |
+| Fix | `fix/<scope>-<topic>` | `fix/core-undo-order`, `fix/ui-light-theme-contrast` |
+| Other work | `<type>/<topic>` using the commit types below | `docs/contributing-branches`, `ci/linux-first`, `refactor/app-commands` |
+| Release preparation | `release/<version>` | `release/0.2.0` |
+
+- Lowercase, words joined with `-`, no more than about five words. The scope is one of the commit scopes below; leave it out when the change spans several.
+- No personal, random or tool-generated names (`wyvern/…`, `agent-branch/…`, `patch-1`): the name should tell a reviewer what the branch is before they open it.
+- Delete the branch once its pull request is merged or closed. Turn on **Settings → General → Automatically delete head branches** so GitHub does it.
+- `main` is the only long-lived branch.
+
 ## Commits and pull requests
 
 - [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<scope>): <subject>`. Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `revert`. Scopes: `core`, `io`, `net`, `app`, `cli`, `ui`, `docs`, `ci`, `release`. Breaking changes use `!` plus a `BREAKING CHANGE:` footer.
-- Branch as `<type>/<slug>`, rebase on `main` rather than merging it in, and expect a squash merge.
+- Rebase on `main` rather than merging it in, and expect a squash merge.
 - Open an issue before starting a feature so scope can be agreed.
 - Every PR description includes a **Privacy impact** line: does it touch the network, the filesystem, logging or user data? Write "none" if not.
 - New behaviour needs tests, bug fixes need a regression test, and user-visible changes need a `CHANGELOG.md` entry.
