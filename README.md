@@ -21,24 +21,25 @@ That promise is the whole point. Bookmark exports leak more than people realise:
 
 ## Install
 
-<!-- TODO: link to GitHub releases once signed binaries ship. -->
-Download a signed Windows build from the releases page: *<TODO: link to GitHub releases once signed binaries ship>*.
+Download a Windows build from the [releases page](https://github.com/coatyl/lantern/releases). The latest is [v0.1.0](https://github.com/coatyl/lantern/releases/tag/v0.1.0).
 
-Three flavours ship per release:
+Each release ships these files (`<ver>` is the version, e.g. `0.1.0`):
 
-| Flavour | What it is |
+| File | What it is |
 |---|---|
-| `lantern.exe` (portable) | Single executable. No installer, no registry writes. xcopy-deployable to a USB stick. |
-| `lantern-installed.msix` | MSIX package for `winget` / Microsoft Store-style install. |
-| `lantern-offline.exe` | Portable build with the dead-link checker compiled out: verifiably no networking code linked. |
+| `lantern-v<ver>-portable-x64.exe` | Single executable. No installer, no registry writes. xcopy-deployable to a USB stick. |
+| `lantern-v<ver>-offline-x64.exe` | Portable build with the dead-link checker compiled out: verifiably no networking code linked. |
+| `lantern-v<ver>-installer-nsis-x64.exe` | Per-user NSIS installer. |
+| `lantern-v<ver>-installer-x64.msi` | MSI installer for managed deployment. |
+| `SHA256SUMS.txt` | SHA-256 of every file above. |
 
-Verify a signed download:
+Check a download against `SHA256SUMS.txt`:
 
 ```powershell
-Get-AuthenticodeSignature .\lantern.exe
+(Get-FileHash -Algorithm SHA256 .\lantern-v0.1.0-portable-x64.exe).Hash
 ```
 
-The output should report `Status: Valid`. Unsigned dev builds and self-built binaries report `unsigned` in `Settings → About`.
+**Release builds are currently unsigned.** Windows SmartScreen will warn on first run, and `Settings → About` reports `unsigned`. Signing turns on once an Authenticode certificate is in place; after that, `Get-AuthenticodeSignature .\lantern.exe` should report `Status: Valid`. MSIX packaging is deferred to a later release.
 
 ### Build from source
 
@@ -51,7 +52,7 @@ npm install
 npm run build
 ```
 
-The build produces `target/release/lantern.exe` plus an NSIS installer when `bundle.active = true`. `target/` is gitignored; what a release is supposed to contain, and the hashes of the 2026-05-06 v1.0.0 copies, live in [`build/releases/README.md`](build/releases/README.md). For the offline-only flavour:
+The build produces `target/release/lantern.exe` plus an NSIS installer when `bundle.active = true`. `target/` is gitignored; how releases are built and named, and the hashes of the older 2026-05-06 local builds, live in [`build/releases/README.md`](build/releases/README.md). For the offline-only flavour:
 
 ```powershell
 cargo build --release -p lantern-app --no-default-features --locked

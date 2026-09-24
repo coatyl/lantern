@@ -1,0 +1,209 @@
+name: Release
+
+# Publishes a GitHub Release for one version of Lantern.
+#
+# Two ways in:
+#   * push a `vX.Y.Z` tag: the release is built from the tagged commit;
+#   * run the workflow by hand on `main`: the tag `v<version>` is taken
+#     from Cargo.toml and created by the publish step, pointing at the
+#     commit the run was started from.
+#
+# Either way the tag must equal `v` + the version in every version file
+# (Cargo.toml, package.json, ui/package.json, tauri.conf.json), and
+# CHANGELOG.md must carry a `## [X.Y.Z]` section: that section becomes
+# the release notes.
+#
+# Artefacts are built unsigned.  The Authenticode path lives in ci.yml
+# (`sign-windows-installed`) and stays gated on the certificate secret;
+# when the certificate lands, the same signtool step belongs in `build`
+# below.  See CHANGELOG "Operational caveats".
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - id: version
+        name: Resolve version and check every version file agrees
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo_v=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)
+          npm_v=$(node -p "require('./package.json').version")
+          ui_v=$(node -p "require('./ui/package.json').version")
+          tauri_v=$(node -p "require('./crates/lantern-app/tauri.conf.json').version")
+          echo "Cargo.toml=$cargo_v package.json=$npm_v ui/package.json=$ui_v tauri.conf.json=$tauri_v"
+          for v in "$npm_v" "$ui_v" "$tauri_v"; do
+            if [ "$v" != "$cargo_v" ]; then
+              echo "::error::version files disagree (see line above)"
+              exit 1
+            fi
+          done
+          tag="v${cargo_v}"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [ "${GITHUB_REF_NAME}" != "$tag" ]; then
+              echo "::error::tag ${GITHUB_REF_NAME} does not match version files (${tag})"
+              exit 1
+            fi
+          else
+            if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+              echo "::error::manual releases run from main only (got ${GITHUB_REF})"
+              exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+              echo "::error::${tag} already exists; bump the version first"
+              exit 1
+            fi
+          fi
+          echo "version=${cargo_v}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      - name: Extract release notes from CHANGELOG.md
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Everything between `## [X.Y.Z]` and the next `## [` heading,
+          # minus surrounding blank lines and the trailing `---` rule.
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { line[++n] = $0 }
+            END {
+              s = 1
+              while (s <= n && line[s] ~ /^[[:space:]]*$/) s++
+              while (n > 0 && (line[n] ~ /^[[:space:]]*$/ || line[n] == "---")) n--
+              for (i = s; i <= n; i++) print line[i]
+            }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no '## [${VERSION}]' section"
+            exit 1
+          fi
+          echo "Release notes: $(wc -l < notes.md) lines"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: notes.md
+          if-no-files-found: error
+
+  build:
+    needs: prepare
+    runs-on: windows-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        flavor: [portable, offline, installed]
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.flavor }}
+      - run: npm ci
+
+      - name: Build portable flavour
+        if: matrix.flavor == 'portable'
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.portable.conf.json
+      - name: Build offline flavour (dead-link checker compiled out)
+        if: matrix.flavor == 'offline'
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.offline.conf.json -- --no-default-features
+      - name: Assert no networking crates in the offline flavour
+        if: matrix.flavor == 'offline'
+        shell: pwsh
+        run: |
+          $tree = cargo tree -p lantern-app --no-default-features --target x86_64-pc-windows-msvc
+          if ($tree -match '\breqwest\b') { Write-Error "reqwest leaked into offline build"; exit 1 }
+          if ($tree -match '\bhyper\b')   { Write-Error "hyper leaked into offline build";   exit 1 }
+      - name: Build installed flavour (NSIS + MSI)
+        if: matrix.flavor == 'installed'
+        run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.installed.conf.json
+
+      # File names follow build/releases/README.md:
+      #   lantern-v<ver>-{portable,offline}-x64.exe
+      #   lantern-v<ver>-installer-nsis-x64.exe, lantern-v<ver>-installer-x64.msi
+      - name: Stage artefacts
+        shell: pwsh
+        run: |
+          $base = "target/x86_64-pc-windows-msvc/release"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          switch ("${{ matrix.flavor }}") {
+            "portable" { Copy-Item "$base/lantern.exe" "dist/lantern-v$env:VERSION-portable-x64.exe" }
+            "offline"  { Copy-Item "$base/lantern.exe" "dist/lantern-v$env:VERSION-offline-x64.exe" }
+            "installed" {
+              $nsis = @(Get-ChildItem "$base/bundle/nsis/*.exe")
+              $msi  = @(Get-ChildItem "$base/bundle/msi/*.msi")
+              if ($nsis.Count -ne 1 -or $msi.Count -ne 1) {
+                Write-Error "expected one NSIS and one MSI bundle, got $($nsis.Count) and $($msi.Count)"; exit 1
+              }
+              Copy-Item $nsis[0].FullName "dist/lantern-v$env:VERSION-installer-nsis-x64.exe"
+              Copy-Item $msi[0].FullName  "dist/lantern-v$env:VERSION-installer-x64.msi"
+            }
+          }
+          Get-ChildItem dist | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.flavor }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+      - name: Write SHA256SUMS.txt
+        working-directory: dist
+        run: |
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--repo "${GITHUB_REPOSITORY}" --title "Lantern ${TAG}" --notes-file notes.md --latest)
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            args+=(--verify-tag)
+          else
+            args+=(--target "${GITHUB_SHA}")
+          fi
+          gh release create "${TAG}" dist/* "${args[@]}"

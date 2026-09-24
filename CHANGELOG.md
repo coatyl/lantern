@@ -9,15 +9,37 @@ Lantern uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-The pre-1.0 development cycle.  Lantern is at **0.1.0**; the road to a
-future stable v1.0 continues, and breaking changes are still allowed
-until then.  v1.0 (future) will be **the stability promise**, at which
-point breaking changes will require a major-version bump.  Future
-slices (CLI subcommand expansion, more locales, ARM64 build, MSIX
-packaging hardening, etc.) continue on the way to v1.0.
+Work toward **0.2.0**.  Breaking changes are still allowed until v1.0,
+which will be **the stability promise**; from then on breaking changes
+require a major-version bump.
+
+---
+
+## [0.1.0] - 2026-09-24
+
+The first published release of Lantern, and the first git tag
+(`v0.1.0`).  Feature scope was frozen at the 2026-05-05 milestone
+described below; the tag was cut on 2026-09-24 after a clean-up pass
+that made CI green on a cold clone and fixed the workspace start-up
+bug (see "Since the 2026-05-05 freeze").  The v0.0.x entries further
+down are internal milestones: none of them were tagged or published.
+
+An early, pre-1.0 milestone.  Ten months of development across nine
+milestones (v0.0.1 through v0.0.11) converge here.  Every PRD requirement either meets its NFR target or has a
+documented operational caveat
+(`private/docs/17-known-limitations-v0.1.md`).  357 Rust + 70 Vitest +
+8 Playwright E2E specs, all green.  Code-signing scaffolding ships
+unsigned pending certificate procurement; NVDA test plan ships ready
+for first execution.
 
 ### Added
 
+**Since the 2026-05-05 freeze**
+- **release:** `.github/workflows/release.yml` builds the portable,
+  offline and installer (NSIS + MSI) Windows flavours from a `v*` tag
+  (or a manual dispatch on `main`), checks that the tag matches every
+  version file, writes `SHA256SUMS.txt`, and publishes a GitHub Release
+  whose notes are this changelog's section for that version.
 - **ui:** library home replaces the one-shot welcome splash. Recent
   files render as a collection of volumes (name, directory, most-recent
   badge); empty and populated libraries are distinct layouts; crash
@@ -33,48 +55,6 @@ packaging hardening, etc.) continue on the way to v1.0.
 - `PHILOSOPHY.md` stating the major identity bets (archive vs. file
   editor, curation vs. hygiene, local protocol, design language,
   capability-free extensions, universal formats).
-
-### Fixed
-
-- **ci:** the `changes` job no longer calls the Pulls API (which 403s
-  under this account's restricted `GITHUB_TOKEN` — contents/metadata/
-  packages only). Path filtering is now a `git diff`, and the workflow
-  declares `permissions: contents: read, pull-requests: read`.
-- **ci:** `reproducible-build-check` rebuilds twice from the same tree
-  with `--remap-path-prefix` and MSVC `/Brepro`, instead of two sibling
-  checkouts whose absolute paths made the hashes impossible to match.
-- **ui:** the three-pane workspace now hydrates already-open documents on
-  startup instead of only after an explicit open action; the welcome
-  screen still shows when no document is open.
-- **ci:** the Playwright E2E suite is green again — replaced ambiguous
-  text locators (which broke once real workspace content rendered) with
-  scoped, role-based selectors.
-- **app:** `crates/lantern-app/src/commands.rs` now ends with a trailing
-  newline, so `cargo fmt --check` passes.
-- **docs:** `README.md` and `CONTRIBUTING.md` CLI examples now match the
-  shipped subcommands (`info` / `sanitize` / `rule-sets`) and flags
-  (`--output`, `--dry-run`); resolved the `<org>` repository placeholders.
-
-### Changed
-
-- Regenerated the `ts-rs` bindings (`DocDiffReport`, `RuleSetDetail`) that
-  had drifted from their Rust doc comments.
-- Ignore per-host Playwright output and the Linux Tauri ACL schema.
-
----
-
-## [0.1.0] - 2026-05-05
-
-The first **0.1.0** release: an early, pre-1.0 milestone.  Ten months
-of development across nine milestones (v0.0.1 through v0.0.11) converge
-here.  Every PRD requirement either meets its NFR target or has a
-documented operational caveat
-(`private/docs/17-known-limitations-v0.1.md`).  357 Rust + 70 Vitest +
-8 Playwright E2E specs, all green.  Code-signing scaffolding ships
-unsigned pending certificate procurement; NVDA test plan ships ready
-for first execution.
-
-### Added
 
 **Headless companion: `lantern-cli` crate**
 - New `crates/lantern-cli/` workspace member shipping a `lantern`
@@ -135,6 +115,27 @@ for first execution.
 
 ### Fixed
 
+**Since the 2026-05-05 freeze**
+- **ci:** the `changes` job no longer calls the Pulls API (which 403s
+  under this account's restricted `GITHUB_TOKEN` — contents/metadata/
+  packages only). Path filtering is now a `git diff`, and the workflow
+  declares `permissions: contents: read, pull-requests: read`.
+- **ci:** `reproducible-build-check` rebuilds twice from the same tree
+  with `--remap-path-prefix` and MSVC `/Brepro`, instead of two sibling
+  checkouts whose absolute paths made the hashes impossible to match.
+- **ui:** the three-pane workspace now hydrates already-open documents on
+  startup instead of only after an explicit open action; the welcome
+  screen still shows when no document is open.
+- **ci:** the Playwright E2E suite is green again — replaced ambiguous
+  text locators (which broke once real workspace content rendered) with
+  scoped, role-based selectors.
+- **app:** `crates/lantern-app/src/commands.rs` now ends with a trailing
+  newline, so `cargo fmt --check` passes.
+- **docs:** `README.md` and `CONTRIBUTING.md` CLI examples now match the
+  shipped subcommands (`info` / `sanitize` / `rule-sets`) and flags
+  (`--output`, `--dry-run`); resolved the `<org>` repository placeholders.
+
+**At the freeze**
 - **Signing-design correction.**  v0.0.10 routed signing through Tauri's
   `bundle.windows.signCommand` config field with a `${LANTERN_SIGN_CMD}`
   env-var indirection.  In practice Tauri 2 errors when `signCommand`
@@ -153,6 +154,13 @@ for first execution.
   installed flavor (MSI as v0.0.9's stand-in remains the production
   installer); MSIX returns when Microsoft Store publishing is
   scheduled.
+
+### Changed
+
+**Since the 2026-05-05 freeze**
+- Regenerated the `ts-rs` bindings (`DocDiffReport`, `RuleSetDetail`) that
+  had drifted from their Rust doc comments.
+- Ignore per-host Playwright output and the Linux Tauri ACL schema.
 
 ### Operational caveats (not code defects)
 
@@ -1101,10 +1109,5 @@ No network requests are made in v0.0.1. The dead-link checker (opt-in, off by de
 
 ---
 
-[Unreleased]: https://github.com/coatyl/lantern/compare/v0.0.6...HEAD
-[0.0.6]: https://github.com/coatyl/lantern/releases/tag/v0.0.6
-[0.0.5]: https://github.com/coatyl/lantern/releases/tag/v0.0.5
-[0.0.4]: https://github.com/coatyl/lantern/releases/tag/v0.0.4
-[0.0.3]: https://github.com/coatyl/lantern/releases/tag/v0.0.3
-[0.0.2]: https://github.com/coatyl/lantern/releases/tag/v0.0.2
-[0.0.1]: https://github.com/coatyl/lantern/releases/tag/v0.0.1
+[Unreleased]: https://github.com/coatyl/lantern/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/coatyl/lantern/releases/tag/v0.1.0
