@@ -83,7 +83,7 @@ test.describe("with fixture workspace", () => {
     await expect(palette).not.toBeVisible();
 
     await expect(
-      page.getByRole("dialog", { name: "Proposed changes" }),
+      page.getByRole("region", { name: "Proposed changes" }),
     ).toBeVisible();
   });
 });

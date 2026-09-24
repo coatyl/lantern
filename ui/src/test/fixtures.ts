@@ -28,6 +28,9 @@ export function change(overrides: Partial<ChangeEntry> = {}): ChangeEntry {
     rationale: "Strip UTM parameters",
     destructive: false,
     approved: true,
+    node_title: "Example",
+    node_url: "https://example.com?utm_source=x",
+    location: ["Reading"],
     ...overrides,
   };
 }

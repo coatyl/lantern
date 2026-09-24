@@ -26,4 +26,19 @@ after_spans: Array<DiffSpan>, treatment_id: string, rationale: string, destructi
 /**
  * Initial approval state (true for non-destructive changes).
  */
-approved: boolean, };
+approved: boolean, 
+/**
+ * Title (bookmark) or name (folder) of the node, as it is before the
+ * change.  Lets the review surface say *what* a change touches; for a
+ * deletion it is the only description of the node.
+ */
+node_title: string, 
+/**
+ * The node's URL before the change (bookmarks only).
+ */
+node_url: string | null, 
+/**
+ * Folder names from the top of the document down to the node's parent
+ * (the root folder itself is left out).
+ */
+location: Array<string>, };

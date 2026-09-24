@@ -319,6 +319,15 @@ pub struct ChangeEntry {
     pub destructive: bool,
     /// Initial approval state (true for non-destructive changes).
     pub approved: bool,
+    /// Title (bookmark) or name (folder) of the node, as it is before the
+    /// change.  Lets the review surface say *what* a change touches; for a
+    /// deletion it is the only description of the node.
+    pub node_title: String,
+    /// The node's URL before the change (bookmarks only).
+    pub node_url: Option<String>,
+    /// Folder names from the top of the document down to the node's parent
+    /// (the root folder itself is left out).
+    pub location: Vec<String>,
 }
 
 /// Return value of `run_pass`: what the UI shows in the preview panel.

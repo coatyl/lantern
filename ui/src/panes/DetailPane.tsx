@@ -1,14 +1,9 @@
 /**
- * Right pane: selected item details + sanitize controls + change-set review.
+ * Right pane: selected item details + sanitize controls.
  *
- * v0.0.1:
- *  - When an item is selected: title, URL (with copy + open), dates
- *  - Rule set picker (Minimal clean / Aggressive scrub)
- *  - Sanitize button + inline PreviewPanel for reviewing proposed changes
- *
- * v0.0.3:
- *  - Rule set picker populated from disk via ipc.listRuleSets()
- *  - "Manage…" button opens the RuleSetEditorModal
+ * Running a pass hands the proposed change set to the review surface
+ * (`ReviewPane`), which takes over the list and detail columns until the
+ * user applies or discards it.
  */
 
 import { useState, useRef, useEffect } from "react";
@@ -16,6 +11,8 @@ import { RUN_PASS_EVENT } from "../components/commandPalette";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useDocuments } from "../state/documents";
+import { useToast } from "../hooks/useToast";
+import { useT } from "../i18n/I18nProvider";
 import { ipc } from "../ipc";
 import {
   DownloadIcon,
@@ -24,23 +21,29 @@ import {
   TrashIcon,
 } from "../components/Icons";
 import { RuleSetEditorModal } from "../components/RuleSetEditorModal";
-import { PreviewPanel } from "../components/PreviewPanel";
 import { useRuleSetList, BUILTIN_DESCRIPTIONS } from "../hooks/useRuleSetList";
-import type { ChangeSetPreview, FolderItem } from "../ipc/types";
+import type { FolderItem } from "../ipc/types";
+
+type PassScope = "document" | "folder";
 
 // ---------------------------------------------------------------------------
 
 export default function DetailPane() {
-  const { activeTab, listPage, selectedItem, pendingDelete, setPendingDelete,
-          refreshTree, refreshList } = useDocuments();
+  const t = useT();
+  const { toast } = useToast();
+  const { activeTab, selectedItem, pendingDelete, setPendingDelete,
+          refreshTree, refreshList, folderStack, openReview } = useDocuments();
 
   const { summaries, refresh: refreshRuleSets } = useRuleSetList();
 
   const [ruleSetName, setRuleSetName] = useState<string>("Aggressive scrub");
-  const [preview, setPreview] = useState<ChangeSetPreview | null>(null);
+  const [scope, setScope] = useState<PassScope>("document");
   const [running, setRunning] = useState(false);
-  const [report, setReport] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+
+  // "This folder" only means something below the root.
+  const currentFolder = folderStack.at(-1) ?? null;
+  const effectiveScope: PassScope = currentFolder ? scope : "document";
 
   // Keep ruleSetName valid when summaries update (e.g. user deletes active set).
   useEffect(() => {
@@ -59,17 +62,20 @@ export default function DetailPane() {
 
   const handleRunPass = async () => {
     if (!activeTab) return;
+    const folder = effectiveScope === "folder" ? currentFolder : null;
+    const scopeLabel = folder
+      ? t("review.scope.folder", { name: folder.name })
+      : t("review.scope.document");
     setRunning(true);
-    setReport(null);
     try {
-      const p = await ipc.runPass(activeTab, ruleSetName);
-      if (p.changes.length === 0) {
-        setReport("No changes proposed; document is already clean.");
+      const preview = await ipc.runPass(activeTab, ruleSetName, folder?.id ?? null);
+      if (preview.changes.length === 0) {
+        toast(t("review.nothing", { scope: scopeLabel, ruleSet: ruleSetName }), "info");
       } else {
-        setPreview(p);
+        openReview({ tabId: activeTab, preview, scopeLabel });
       }
     } catch (e) {
-      setReport(`Error: ${String(e)}`);
+      toast(String(e), "error");
     } finally {
       setRunning(false);
     }
@@ -144,10 +150,7 @@ export default function DetailPane() {
           </div>
           <select
             value={ruleSetName}
-            onChange={(e) => {
-              setRuleSetName(e.target.value);
-              setReport(null);
-            }}
+            onChange={(e) => setRuleSetName(e.target.value)}
             disabled={running || !activeTab}
             className="w-full bg-surface-2 border border-neutral-700 rounded px-2 py-1
                        text-xs text-neutral-200 focus:outline-none focus:ring-1
@@ -166,6 +169,42 @@ export default function DetailPane() {
           )}
         </div>
 
+        {/* Scope: whole document, or the folder currently shown in the list */}
+        <div className="mb-2">
+          <span className="block text-[10px] text-neutral-600 uppercase tracking-wider mb-1">
+            {t("detail.scope")}
+          </span>
+          <div role="radiogroup" aria-label={t("detail.scope")} className="grid grid-cols-2 gap-1">
+            {(["document", "folder"] as const).map((value) => {
+              const disabled = value === "folder" && !currentFolder;
+              const checked = effectiveScope === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={checked}
+                  disabled={disabled || running}
+                  onClick={() => setScope(value)}
+                  title={value === "folder" && currentFolder ? currentFolder.name : undefined}
+                  className={`px-2 py-1 rounded border text-[11px] truncate transition-colors
+                              disabled:opacity-40 ${
+                                checked
+                                  ? "border-accent/60 bg-accent/10 text-accent"
+                                  : "border-neutral-800 text-neutral-400 hover:text-neutral-200"
+                              }`}
+                >
+                  {value === "document"
+                    ? t("detail.scope.document")
+                    : currentFolder
+                      ? currentFolder.name
+                      : t("detail.scope.folder")}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <button
           onClick={handleRunPass}
           disabled={running || !activeTab}
@@ -176,31 +215,7 @@ export default function DetailPane() {
         >
           {running ? "Analysing…" : "Run pass"}
         </button>
-
-        {report && (
-          <p className="mt-2 text-xs text-neutral-500 leading-snug">{report}</p>
-        )}
       </section>
-
-      {/* ── Stats ────────────────────────────────────────────────────────── */}
-      {listPage && (
-        <section className="px-3 py-2 text-xs text-neutral-600 border-b border-neutral-800 shrink-0">
-          {listPage.total} item{listPage.total !== 1 ? "s" : ""} in current folder
-        </section>
-      )}
-
-      {/* ── Change-set preview overlay ───────────────────────────────────── */}
-      {preview && (
-        <PreviewPanel
-          preview={preview}
-          tabId={activeTab!}
-          onDone={(msg) => {
-            setPreview(null);
-            setReport(msg);
-          }}
-          onCancel={() => setPreview(null)}
-        />
-      )}
 
       {/* ── Rule-set editor modal ────────────────────────────────────────── */}
       <RuleSetEditorModal

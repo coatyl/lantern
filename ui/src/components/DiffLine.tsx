@@ -14,13 +14,16 @@ export interface DiffLineProps {
   spans: DiffSpan[] | undefined;
   fallback: string;
   side: "before" | "after";
+  /** Wrap long values (URLs) instead of truncating them to one line. */
+  wrap?: boolean;
 }
 
-export function DiffLine({ spans, fallback, side }: DiffLineProps) {
+export function DiffLine({ spans, fallback, side, wrap = false }: DiffLineProps) {
+  const layout = wrap ? "break-all" : "truncate";
   const baseClass =
     side === "before"
-      ? "text-neutral-500 truncate text-[11px]"
-      : "text-neutral-200 truncate text-[11px]";
+      ? `text-neutral-500 ${layout} text-[11px]`
+      : `text-neutral-200 ${layout} text-[11px]`;
 
   if (!fallback) {
     const placeholderColor =

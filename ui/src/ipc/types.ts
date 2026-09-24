@@ -172,7 +172,8 @@ export interface DiffSpan {
 export interface ChangeEntry {
   index: number;
   node_id: NodeId;
-  field: "url" | "title" | "folder_name";
+  /** `node` is a whole-node deletion (e.g. an exact-URL duplicate). */
+  field: "url" | "title" | "folder_name" | "node";
   before: string;
   after: string;
   /** Char-level diff of `before`; empty when diff was skipped (input too long). */
@@ -183,6 +184,12 @@ export interface ChangeEntry {
   rationale: string;
   destructive: boolean;
   approved: boolean;
+  /** Title (bookmark) or name (folder) before the change. */
+  node_title: string;
+  /** URL before the change; bookmarks only. */
+  node_url: string | null;
+  /** Folder names from the top of the document to the node's parent. */
+  location: string[];
 }
 
 export interface ChangeSetPreview {

@@ -35,6 +35,7 @@ import { DiffModal } from "./components/DiffModal";
 import { DeadLinkModal } from "./components/DeadLinkModal";
 import { MergePickerModal } from "./components/MergePickerModal";
 import { CommandPalette } from "./components/CommandPalette";
+import { ReviewPane } from "./components/ReviewPane";
 import {
   requestRunPass,
   requestSearchFocus,
@@ -67,7 +68,9 @@ export default function App() {
     clearSearch,
     goBack,
     goForward,
+    review,
   } = useDocuments();
+  const activeReview = review && review.tabId === activeTab ? review : null;
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
@@ -384,15 +387,23 @@ export default function App() {
             <TreePane />
           </aside>
 
-          {/* Centre: item list */}
-          <section className="flex-1 min-w-0 flex flex-col border-r border-neutral-800">
-            <ListPane />
-          </section>
+          {activeReview ? (
+            /* A pass is awaiting a decision: the review takes the list and
+               detail columns so full URLs and folder paths fit. */
+            <ReviewPane review={activeReview} />
+          ) : (
+            <>
+              {/* Centre: item list */}
+              <section className="flex-1 min-w-0 flex flex-col border-r border-neutral-800">
+                <ListPane />
+              </section>
 
-          {/* Right: item detail */}
-          <aside className="w-72 shrink-0 flex flex-col">
-            <DetailPane />
-          </aside>
+              {/* Right: item detail */}
+              <aside className="w-72 shrink-0 flex flex-col">
+                <DetailPane />
+              </aside>
+            </>
+          )}
         </main>
       ) : (
         <LibraryHome onOpen={openFile} />

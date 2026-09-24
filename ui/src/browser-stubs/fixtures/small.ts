@@ -41,7 +41,7 @@ export interface FixtureState {
   getTreeChildren: (tab: number, parentId: number) => TreeNodeLazy[];
   getFolderItems: (tab: number, folderId: number) => ItemPage;
   search: (tab: number, query: Record<string, unknown>) => SearchResults;
-  runPass: (tab: number, ruleSetName: string) => ChangeSetPreview;
+  runPass: (tab: number, ruleSetName: string, scope?: number | null) => ChangeSetPreview;
   applyChangeset: (
     changesetId: number,
     approvals: boolean[],
@@ -267,6 +267,12 @@ export function smallFixture(): FixtureState {
     },
 
     runPass(_tab, ruleSetName) {
+      // A little of everything the review surface has to render: a tracking
+      // parameter, a title fix, a folder rename, and a duplicate deletion
+      // (destructive, so it starts unapproved).
+      const eq = (text: string) => ({ tag: "equal" as const, text });
+      const rm = (text: string) => ({ tag: "removed" as const, text });
+      const add = (text: string) => ({ tag: "added" as const, text });
       const preview: ChangeSetPreview = {
         changeset_id: 1,
         rule_set_name: ruleSetName,
@@ -277,12 +283,63 @@ export function smallFixture(): FixtureState {
             field: "url",
             before: "https://github.com/example/lantern?utm_source=test",
             after: "https://github.com/example/lantern",
-            before_spans: [],
-            after_spans: [],
-            treatment_id: "strip-utm",
+            before_spans: [eq("https://github.com/example/lantern"), rm("?utm_source=test")],
+            after_spans: [eq("https://github.com/example/lantern")],
+            treatment_id: "url.qp.utm",
             rationale: "Removed tracking query parameter",
             destructive: false,
             approved: true,
+            node_title: "Lantern repo",
+            node_url: "https://github.com/example/lantern?utm_source=test",
+            location: ["Tools"],
+          },
+          {
+            index: 1,
+            node_id: 203,
+            field: "title",
+            before: "TypeScript Handbook  | TypeScript",
+            after: "TypeScript Handbook",
+            before_spans: [eq("TypeScript Handbook"), rm("  | TypeScript")],
+            after_spans: [eq("TypeScript Handbook")],
+            treatment_id: "title.site_suffix",
+            rationale: "Removed site-name suffix",
+            destructive: false,
+            approved: true,
+            node_title: "TypeScript Handbook  | TypeScript",
+            node_url: "https://www.typescriptlang.org/docs/",
+            location: ["Reference"],
+          },
+          {
+            index: 2,
+            node_id: 300,
+            field: "folder_name",
+            before: "Tools ",
+            after: "Tools",
+            before_spans: [eq("Tools"), rm(" ")],
+            after_spans: [eq("Tools"), add("")],
+            treatment_id: "folder.whitespace",
+            rationale: "Trimmed whitespace",
+            destructive: false,
+            approved: true,
+            node_title: "Tools ",
+            node_url: null,
+            location: [],
+          },
+          {
+            index: 3,
+            node_id: 204,
+            field: "node",
+            before: "",
+            after: "(deleted)",
+            before_spans: [],
+            after_spans: [],
+            treatment_id: "structure.duplicates.exact_url",
+            rationale: "Exact duplicate of \u201cGitHub\u201d in Tools",
+            destructive: true,
+            approved: false,
+            node_title: "GitHub (saved twice)",
+            node_url: "https://github.com/",
+            location: ["Reference"],
           },
         ],
       };

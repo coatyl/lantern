@@ -17,6 +17,7 @@ import type {
   SearchMode,
   FolderItem,
   FilterSpec,
+  ChangeSetPreview,
 } from "../ipc/types";
 import { ipc } from "../ipc";
 
@@ -40,6 +41,18 @@ export function isFilterActive(filter: FilterSpec | null): boolean {
 export interface FolderCrumb {
   id: number;
   name: string;
+}
+
+/**
+ * A change set waiting for the user's decision.  While one is open for the
+ * active tab the workspace swaps the list + detail panes for the review
+ * surface.
+ */
+export interface PendingReview {
+  tabId: TabId;
+  preview: ChangeSetPreview;
+  /** Human label for what the pass covered, e.g. "Whole document". */
+  scopeLabel: string;
 }
 
 /** Default page size for the list pane. */
@@ -119,6 +132,11 @@ interface DocumentsState {
   // ── Structured filter (v0.0.5) ────────────────────────────────────────────
   /** Active filter applied to both browsing and searching. `null` = no filter. */
   filter: FilterSpec | null;
+
+  // ── Review (proposed changes awaiting approval) ─────────────────────────
+  review: PendingReview | null;
+  openReview: (review: PendingReview) => void;
+  closeReview: () => void;
 
   // ── Derived helpers (not stored; computed from folderStack) ──────────────
   /** ID of the currently displayed folder (0 = document root). */
@@ -201,6 +219,10 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
   isSearchMode: false,
   searchResults: null,
   filter: null,
+  review: null,
+
+  openReview: (review) => set({ review }),
+  closeReview: () => set({ review: null }),
 
   activeFolderId: () => get().folderStack.at(-1)?.id ?? 0,
 
@@ -240,6 +262,10 @@ export const useDocuments = create<DocumentsState>((set, get) => ({
   refreshTabs: async () => {
     const tabs = await ipc.listTabs();
     set({ tabs });
+    const { review } = get();
+    if (review && !tabs.find((t) => t.id === review.tabId)) {
+      set({ review: null });
+    }
     const { activeTab } = get();
     if (activeTab !== null && !tabs.find((t) => t.id === activeTab)) {
       set({

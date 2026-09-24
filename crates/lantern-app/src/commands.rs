@@ -12,7 +12,7 @@
 //! - `undo` / `redo`
 //! - `export`
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use lantern_core::emit::EmitOptions;
@@ -285,6 +285,7 @@ pub fn search_impl(
 pub async fn run_pass(
     tab: TabId,
     rule_set_name: String,
+    scope: Option<NodeId>,
     state: tauri::State<'_, AppState>,
 ) -> CommandResult<ChangeSetPreview> {
     // Prefer the on-disk rule set; falls back to the in-memory built-in
@@ -293,14 +294,17 @@ pub async fn run_pass(
     let rule_set = rulestore::load_rule_set(&state.rules_dir, &rule_set_name)
         .map_err(|e| UiError::InvalidOperation(e.to_string()))?;
 
-    let changeset = {
+    // `scope` limits the pass to one folder and everything below it; `None`
+    // (or the root folder's id) covers the whole document.
+    let target = scope.map_or(PassTarget::AllNodes, PassTarget::Subtree);
+    let cs_id = state.alloc_changeset_id();
+    let (changeset, preview) = {
         let docs = state.documents.read();
         let doc = docs.get(&tab).ok_or(UiError::TabNotFound(tab))?;
-        lantern_core::sanitize::run_pass(doc, &rule_set, PassTarget::AllNodes)
+        let changeset = lantern_core::sanitize::run_pass(doc, &rule_set, target);
+        let preview = changeset_to_preview(cs_id, &changeset, doc);
+        (changeset, preview)
     };
-
-    let cs_id = state.alloc_changeset_id();
-    let preview = changeset_to_preview(cs_id, &changeset);
     state.pending_changesets.write().insert(cs_id, changeset);
 
     Ok(preview)
@@ -861,7 +865,50 @@ fn node_to_item(node: &Node) -> FolderItem {
     }
 }
 
-fn change_to_entry(index: usize, c: &Change) -> ChangeEntry {
+/// What the review surface shows about the node a change touches.
+struct NodeContext {
+    title: String,
+    url: Option<String>,
+    location: Vec<String>,
+}
+
+/// One walk of the document, collecting context for the nodes in `wanted`.
+fn node_contexts(doc: &Document, wanted: &HashSet<NodeId>) -> HashMap<NodeId, NodeContext> {
+    fn walk(
+        folder: &Folder,
+        path: &mut Vec<String>,
+        wanted: &HashSet<NodeId>,
+        out: &mut HashMap<NodeId, NodeContext>,
+    ) {
+        for child in &folder.children {
+            if wanted.contains(&child.id()) {
+                let (title, url) = match child {
+                    Node::Bookmark(b) => (b.title.clone(), Some(b.url.as_str().to_owned())),
+                    Node::Folder(f) => (f.name.clone(), None),
+                    Node::Separator(_) => (String::new(), None),
+                };
+                out.insert(
+                    child.id(),
+                    NodeContext {
+                        title,
+                        url,
+                        location: path.clone(),
+                    },
+                );
+            }
+            if let Node::Folder(f) = child {
+                path.push(f.name.clone());
+                walk(f, path, wanted, out);
+                path.pop();
+            }
+        }
+    }
+    let mut out = HashMap::with_capacity(wanted.len());
+    walk(&doc.root, &mut Vec::new(), wanted, &mut out);
+    out
+}
+
+fn change_to_entry(index: usize, c: &Change, ctx: Option<&NodeContext>) -> ChangeEntry {
     use lantern_core::sanitize::treatment::ChangeKind;
     let (field, before, after) = match &c.kind {
         ChangeKind::SetField {
@@ -897,13 +944,19 @@ fn change_to_entry(index: usize, c: &Change) -> ChangeEntry {
         rationale: c.rationale.to_string(),
         destructive: c.destructive,
         approved: c.approved,
+        node_title: ctx.map(|n| n.title.clone()).unwrap_or_default(),
+        node_url: ctx.and_then(|n| n.url.clone()),
+        location: ctx.map(|n| n.location.clone()).unwrap_or_default(),
     }
 }
 
 fn changeset_to_preview(
     cs_id: ChangeSetId,
     cs: &lantern_core::sanitize::treatment::ChangeSet,
+    doc: &Document,
 ) -> ChangeSetPreview {
+    let wanted: HashSet<NodeId> = cs.changes.iter().map(|c| c.node_id).collect();
+    let contexts = node_contexts(doc, &wanted);
     ChangeSetPreview {
         changeset_id: cs_id,
         rule_set_name: cs.rule_set_name.clone(),
@@ -911,7 +964,7 @@ fn changeset_to_preview(
             .changes
             .iter()
             .enumerate()
-            .map(|(i, c)| change_to_entry(i, c))
+            .map(|(i, c)| change_to_entry(i, c, contexts.get(&c.node_id)))
             .collect(),
     }
 }

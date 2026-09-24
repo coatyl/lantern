@@ -3,9 +3,10 @@
  *
  * Wrap the React tree once (in `main.tsx`) and use the `useT()` hook to
  * resolve dot-separated keys to the active locale's string.  The provider
- * is intentionally tiny (no async loading, no fallback chain, no
- * pluralisation) because v0.0.9 only ships English.  Adding a second
- * locale is a drop-in file in `./locales.ts`.
+ * is intentionally tiny (no async loading, no fallback chain) because only
+ * English ships.  Plurals: when `params.n === 1` and a `<key>.one` entry
+ * exists, it is used instead ("1 change" vs "{n} changes").  Adding a
+ * second locale is a drop-in file in `./locales.ts`.
  *
  *   const t = useT();
  *   t("titleBar.open");                       // "Open"
@@ -43,7 +44,8 @@ export function I18nProvider({
     return {
       locale,
       t: (key, params) => {
-        const raw = dict[key as string] ?? (key as string);
+        const singular = params?.n === 1 ? dict[`${key as string}.one`] : undefined;
+        const raw = singular ?? dict[key as string] ?? (key as string);
         if (!params) return raw;
         return Object.entries(params).reduce(
           (acc, [k, v]) =>
