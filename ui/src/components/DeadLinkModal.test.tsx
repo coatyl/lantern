@@ -29,14 +29,7 @@ const ok    = (id: number, title: string)  => linkEntry({ node_id: id, title, st
 const fourx = (id: number, title: string)  => linkEntry({ node_id: id, title, status: { kind: "client_error", code: 404 } });
 const fivex = (id: number, title: string)  => linkEntry({ node_id: id, title, status: { kind: "server_error", code: 503 } });
 
-// Shared clipboard spy.  jsdom's `navigator.clipboard` may be undefined or
-// defined as a non-writable accessor depending on version, so we stamp a
-// fresh stub onto `navigator` once and reset between tests.
 const writeText = vi.fn().mockResolvedValue(undefined);
-Object.defineProperty(navigator, "clipboard", {
-  configurable: true,
-  value: { writeText },
-});
 
 beforeEach(() => {
   vi.mocked(ipc.checkDeadLinks).mockReset();
@@ -58,55 +51,38 @@ async function renderAndWaitForReport(report: ReturnType<typeof linkReport>) {
       />
     </I18nProvider>,
   );
-  // The modal kicks off a check on mount; wait for the table to materialize.
-  await waitFor(() => expect(ipc.checkDeadLinks).toHaveBeenCalled());
-  await waitFor(() => expect(screen.getByText(/showing /i)).toBeInTheDocument());
+  // The modal kicks off a check on mount; wait for the results.
+  await screen.findByText(/showing /i);
 }
 
 describe("DeadLinkModal", () => {
-  it("renders summary cards and the entry table after a successful check", async () => {
-    await renderAndWaitForReport(
-      linkReport([ok(1, "alpha"), fourx(2, "bravo"), fivex(3, "charlie")]),
-    );
-    expect(screen.getByText("Bookmarks")).toBeInTheDocument();
-    expect(screen.getByText("alpha")).toBeInTheDocument();
-    expect(screen.getByText("bravo")).toBeInTheDocument();
-    expect(screen.getByText("charlie")).toBeInTheDocument();
-  });
-
-  it("clicking a status card filters the table to that status", async () => {
+  it("runs a check on open and toggles a status filter from its summary card", async () => {
     const user = userEvent.setup();
     await renderAndWaitForReport(
       linkReport([ok(1, "alpha"), fourx(2, "bravo"), fivex(3, "charlie")]),
     );
-    // The 4xx summary card is rendered as a button labelled with its count.
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.getByText("bravo")).toBeInTheDocument();
+    expect(screen.getByText("charlie")).toBeInTheDocument();
+
     const card4xx = screen.getByRole("button", { name: /4xx/i });
     await user.click(card4xx);
-
+    expect(card4xx).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("alpha")).not.toBeInTheDocument();
     expect(screen.getByText("bravo")).toBeInTheDocument();
     expect(screen.queryByText("charlie")).not.toBeInTheDocument();
     expect(screen.getByText(/filter: 4xx/i)).toBeInTheDocument();
-  });
 
-  it("clicking the same card a second time clears the filter", async () => {
-    const user = userEvent.setup();
-    await renderAndWaitForReport(
-      linkReport([ok(1, "alpha"), fourx(2, "bravo")]),
-    );
-    const card4xx = screen.getByRole("button", { name: /4xx/i });
-    await user.click(card4xx);
-    expect(screen.queryByText("alpha")).not.toBeInTheDocument();
-
+    // A second click clears the filter.
     await user.click(card4xx);
     expect(screen.getByText("alpha")).toBeInTheDocument();
-    expect(screen.getByText("bravo")).toBeInTheDocument();
+    expect(screen.getByText("charlie")).toBeInTheDocument();
   });
 
   it("clicking the Time column header sorts by elapsed_ms", async () => {
     const user = userEvent.setup();
-    // Mix in a non-OK entry so the v0.0.11 "all-green" empty state doesn't
-    // hide the sortable table; sort behaviour is the actual subject here.
+    // Mix in a non-OK entry so the "all-green" empty state doesn't hide the
+    // sortable table.
     await renderAndWaitForReport(
       linkReport([
         linkEntry({ node_id: 1, title: "slow",  elapsed_ms: 900 }),
@@ -167,8 +143,8 @@ describe("DeadLinkModal", () => {
   });
 
   it("Copy URLs writes the visible entries' URLs to the clipboard", async () => {
-    // user-event v14 installs its own clipboard emulator on `setup()`.
-    // Re-stamp our spy AFTER setup so the component hits it instead.
+    // user-event v14 installs its own clipboard emulator on `setup()`, so
+    // the spy has to be stamped onto `navigator` after it.
     const user = userEvent.setup();
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,

@@ -3,7 +3,7 @@
  *
  * The matching is intentionally tiny: case-insensitive substring first,
  * then a subsequence (every query character appears in order).  That is
- * enough for a nine-command list without pulling in a fuzzy library.
+ * enough for a short command list without pulling in a fuzzy library.
  */
 
 export type CommandId =
@@ -38,7 +38,7 @@ export function requestSearchFocus(): void {
 }
 
 /** Case-insensitive substring, then subsequence (fuzzy) match. */
-export function matchesCommand(label: string, query: string): boolean {
+function matchesCommand(label: string, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (q.length === 0) return true;
   const hay = label.toLowerCase();
