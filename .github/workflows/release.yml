@@ -13,10 +13,9 @@ name: Release
 # CHANGELOG.md must carry a `## [X.Y.Z]` section: that section becomes
 # the release notes.
 #
-# Artefacts are built unsigned.  The Authenticode path lives in ci.yml
-# (`sign-windows-installed`) and stays gated on the certificate secret;
-# when the certificate lands, the same signtool step belongs in `build`
-# below.  See CHANGELOG "Operational caveats".
+# Artefacts are built unsigned. Signing lives in ci.yml
+# (`sign-windows-installed`); once a certificate exists, move that signtool
+# step into `build` below.
 
 on:
   push:
@@ -118,10 +117,7 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-msvc
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: Swatinem/rust-cache@v2
@@ -146,9 +142,7 @@ jobs:
         if: matrix.flavor == 'installed'
         run: npx tauri build --target x86_64-pc-windows-msvc --config crates/lantern-app/tauri.installed.conf.json
 
-      # File names follow build/releases/README.md:
-      #   lantern-v<ver>-{portable,offline}-x64.exe
-      #   lantern-v<ver>-installer-nsis-x64.exe, lantern-v<ver>-installer-x64.msi
+      # File names are listed in README.md ("Install"); keep the two in sync.
       - name: Stage artefacts
         shell: pwsh
         run: |
