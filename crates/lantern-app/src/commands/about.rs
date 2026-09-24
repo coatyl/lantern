@@ -12,31 +12,37 @@ const LOG_LINES: usize = 200;
 /// The keyboard shortcuts the UI binds, for the Keyboard pane.
 #[tauri::command]
 pub fn list_shortcuts() -> CommandResult<Vec<ShortcutBinding>> {
+    // Keep in step with the key handlers in ui/src/App.tsx, ListPane and
+    // ReviewPane: this list is documentation, not configuration.
     const SHORTCUTS: &[(&str, &str, &str, &str)] = &[
-        ("open_file", "Open file", "Ctrl+O", "File"),
+        ("open_file", "Open files", "Ctrl+O", "File"),
+        ("save_copy", "Save a clean copy", "Ctrl+S", "File"),
+        ("save_copy_as", "Save copy as…", "Ctrl+Shift+S", "File"),
         ("close_tab", "Close tab", "Ctrl+W", "File"),
         ("close_all_tabs", "Close all tabs", "Ctrl+Shift+W", "File"),
-        ("export", "Export", "Ctrl+E", "File"),
+        (
+            "next_tab",
+            "Next / previous tab",
+            "Ctrl+Tab / Ctrl+Shift+Tab",
+            "View",
+        ),
+        ("library", "Library", "Ctrl+Shift+L", "View"),
+        ("search", "Search this document", "Ctrl+F", "View"),
         ("undo", "Undo", "Ctrl+Z", "Edit"),
-        ("redo", "Redo", "Ctrl+Shift+Z", "Edit"),
-        ("search", "Search", "Ctrl+F", "View"),
-        ("filter_drawer", "Filter drawer", "Ctrl+Shift+F", "View"),
+        ("redo", "Redo", "Ctrl+Y / Ctrl+Shift+Z", "Edit"),
+        ("rename", "Rename", "F2", "Edit"),
+        ("delete", "Delete", "Delete", "Edit"),
+        ("run_pass", "Run the selected rule set", "Ctrl+R", "Tools"),
+        (
+            "apply_review",
+            "Apply reviewed changes",
+            "Ctrl+Enter",
+            "Tools",
+        ),
         ("command_palette", "Command palette", "Ctrl+K / ⌘K", "Tools"),
-        ("settings", "Open settings", "Ctrl+,", "Tools"),
-        (
-            "compare_tabs",
-            "Compare tabs (diff)",
-            "Ctrl+Shift+D",
-            "Tools",
-        ),
+        ("compare_tabs", "Compare tabs", "Ctrl+Shift+D", "Tools"),
         ("merge_documents", "Merge documents", "Ctrl+M", "Tools"),
-        (
-            "run_pass",
-            "Run pass with default rule set",
-            "Ctrl+R",
-            "Tools",
-        ),
-        ("help", "Open help", "F1", "App"),
+        ("settings", "Settings", "Ctrl+,", "Tools"),
     ];
     Ok(SHORTCUTS
         .iter()

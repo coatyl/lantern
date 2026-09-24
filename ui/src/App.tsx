@@ -291,6 +291,46 @@ export default function App() {
         return;
       }
 
+      const key = e.key.toLowerCase();
+
+      // Ctrl+W → close the active tab; Ctrl+Shift+W → close all (edited
+      // tabs are confirmed by the close guard)
+      if (e.ctrlKey && key === "w") {
+        e.preventDefault();
+        const { tabs: open, activeTab: current, requestClose } = useDocuments.getState();
+        if (e.shiftKey) void requestClose(open.map((tab) => tab.id));
+        else if (current !== null) void requestClose([current]);
+        return;
+      }
+
+      // Ctrl+Tab / Ctrl+Shift+Tab → next / previous tab
+      if (e.ctrlKey && e.key === "Tab") {
+        const { tabs: open, activeTab: current } = useDocuments.getState();
+        if (open.length === 0) return;
+        e.preventDefault();
+        const index = open.findIndex((tab) => tab.id === current);
+        const step = e.shiftKey ? open.length - 1 : 1;
+        await setActiveTab(open[(Math.max(index, 0) + step) % open.length].id);
+        return;
+      }
+
+      // Ctrl+F → search this document; Ctrl+R → run the selected rule set
+      if (e.ctrlKey && !e.shiftKey && (key === "f" || key === "r")) {
+        if (activeTab === null) return;
+        e.preventDefault();
+        if (key === "f") requestSearchFocus();
+        else requestRunPass();
+        return;
+      }
+
+      // Ctrl+M → merge documents
+      if (e.ctrlKey && !e.shiftKey && key === "m") {
+        if (tabs.length === 0) return;
+        e.preventDefault();
+        setMergeOpen(true);
+        return;
+      }
+
       // Ctrl+Shift+D → compare two tabs
       if (e.ctrlKey && e.shiftKey && (e.key === "d" || e.key === "D")) {
         e.preventDefault();
@@ -332,7 +372,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [showLibrary, activeTab, pickAndOpen, saveCopy, undo, redo]);
+  }, [showLibrary, activeTab, tabs.length, setActiveTab, pickAndOpen, saveCopy, undo, redo]);
 
   useEffect(() => {
     const preventBrowserButtons = (e: MouseEvent) => {
