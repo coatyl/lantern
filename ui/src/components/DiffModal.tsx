@@ -1,17 +1,20 @@
 /**
- * Compare two open tabs and present a three-bucket diff view.
- *
- * Surfaced via Tools → Compare tabs… (Ctrl+Shift+D).  The modal is intentionally
- * dumb: all of the diff logic happens in `lantern-core::diff`; this view just
- * picks the two tabs and renders the result.
+ * Compare two open tabs and present a three-bucket diff view (Tools →
+ * Compare tabs…, Ctrl+Shift+D). The diff itself is computed by
+ * `lantern-core::diff`; this view picks the tabs and renders the result.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { ipc } from "../ipc";
-import type { DocDiffReport, TabId, TabInfo } from "../ipc/types";
-import { useFocusTrap } from "../hooks/useFocusTrap";
-import { XIcon } from "./Icons";
+import type {
+  BookmarkSnapshotView,
+  DocDiffReport,
+  ModifiedBookmarkView,
+  TabId,
+  TabInfo,
+} from "../ipc/types";
+import { Modal, ModalHeader, primaryButton } from "./Modal";
 
 interface DiffModalProps {
   open: boolean;
@@ -36,7 +39,6 @@ export function DiffModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-pick a sensible default when the modal opens.
   useEffect(() => {
     if (!open) return;
     setLeftId(initialLeft ?? tabs[0]?.id ?? null);
@@ -45,17 +47,15 @@ export function DiffModal({
     setError(null);
   }, [open, initialLeft, initialRight, tabs]);
 
-  const canCompare =
-    leftId !== null && rightId !== null && leftId !== rightId;
+  const canCompare = leftId !== null && rightId !== null && leftId !== rightId;
 
   const runCompare = async () => {
-    if (!canCompare || leftId === null || rightId === null) return;
+    if (!canCompare) return;
     setLoading(true);
     setError(null);
     setReport(null);
     try {
-      const r = await ipc.compareTabs(leftId, rightId);
-      setReport(r);
+      setReport(await ipc.compareTabs(leftId, rightId));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -63,133 +63,70 @@ export function DiffModal({
     }
   };
 
-  const total = useMemo(() => {
-    if (!report) return 0;
-    return report.added.length + report.removed.length + report.modified.length;
-  }, [report]);
-
-  const dialogRef = useFocusTrap<HTMLDivElement>(open, onClose);
-
   if (!open) return null;
 
+  const total = report
+    ? report.added.length + report.removed.length + report.modified.length
+    : 0;
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center
-                 bg-surface-0/80 backdrop-blur-sm animate-fade-in"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <Modal
+      label="Compare tabs"
+      onClose={onClose}
+      className="flex flex-col w-[820px] h-[600px] max-h-[90vh]"
     >
-      <div
-        ref={dialogRef}
-        className="bg-surface-1 border border-neutral-800 rounded-lg
-                   shadow-2xl flex flex-col overflow-hidden
-                   w-[820px] max-w-[95vw] h-[600px] max-h-[90vh]"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Compare tabs"
-      >
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-neutral-800 flex items-center
-                        justify-between gap-2 shrink-0">
-          <h2 className="text-sm font-semibold text-neutral-100">Compare tabs</h2>
-          {/* audit P2 #25: hover bg + 32x32 hit area on modal close button */}
-          <button
-            onClick={onClose}
-            className="inline-flex items-center justify-center w-8 h-8 rounded
-                       text-neutral-400 hover:text-neutral-100
-                       hover:bg-neutral-800/60 transition-colors
-                       focus:outline-none focus-visible:ring-1
-                       focus-visible:ring-accent"
-            aria-label="Close compare"
-          >
-            <XIcon className="w-4 h-4" />
-          </button>
-        </div>
+      <ModalHeader title="Compare tabs" closeLabel="Close compare" onClose={onClose} />
 
-        {/* Tab pickers */}
-        <div className="px-4 py-3 border-b border-neutral-800 flex items-center
-                        gap-3 shrink-0">
-          <TabPicker
-            label="Left"
-            tabs={tabs}
-            value={leftId}
-            onChange={setLeftId}
-          />
-          <span className="text-neutral-600 text-xs">vs</span>
-          <TabPicker
-            label="Right"
-            tabs={tabs}
-            value={rightId}
-            onChange={setRightId}
-          />
-          <button
-            onClick={runCompare}
-            disabled={!canCompare || loading}
-            className="ml-auto px-3 py-1 rounded text-xs font-medium
-                       bg-accent hover:bg-accent-hover text-on-accent
-                       disabled:opacity-50 transition-colors
-                       focus:outline-none focus-visible:ring-2
-                       focus-visible:ring-accent"
-          >
-            {loading ? "Comparing…" : "Compare"}
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
-          {error && (
-            <p className="text-xs text-danger leading-snug mb-2">{error}</p>
-          )}
-          {!report && !loading && !error && (
-            <p className="text-xs text-neutral-600 italic">
-              {tabs.length < 2
-                ? "Open at least two documents to compare."
-                : "Pick two tabs above and press Compare."}
-            </p>
-          )}
-          {report && total === 0 && (
-            <p className="text-xs text-neutral-500">
-              No differences; the two tabs are bookmark-equivalent.
-            </p>
-          )}
-          {report && total > 0 && (
-            <div className="space-y-4">
-              {report.added.length > 0 && (
-                <DiffBucket
-                  label="Added"
-                  detail={`Present in ${report.right_title} only`}
-                  count={report.added.length}
-                  rowKind="added"
-                  rows={report.added.map((b) => ({
-                    url: b.url,
-                    title: b.title,
-                  }))}
-                />
-              )}
-              {report.removed.length > 0 && (
-                <DiffBucket
-                  label="Removed"
-                  detail={`Present in ${report.left_title} only`}
-                  count={report.removed.length}
-                  rowKind="removed"
-                  rows={report.removed.map((b) => ({
-                    url: b.url,
-                    title: b.title,
-                  }))}
-                />
-              )}
-              {report.modified.length > 0 && (
-                <ModifiedBucket
-                  count={report.modified.length}
-                  rows={report.modified}
-                />
-              )}
-            </div>
-          )}
-        </div>
+      <div className="px-4 py-3 border-b border-neutral-800 flex items-center gap-3 shrink-0">
+        <TabPicker label="Left" tabs={tabs} value={leftId} onChange={setLeftId} />
+        <span className="text-neutral-600 text-xs">vs</span>
+        <TabPicker label="Right" tabs={tabs} value={rightId} onChange={setRightId} />
+        <button
+          onClick={runCompare}
+          disabled={!canCompare || loading}
+          className={`ml-auto px-3 py-1 ${primaryButton}`}
+        >
+          {loading ? "Comparing…" : "Compare"}
+        </button>
       </div>
-    </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
+        {error && <p className="text-xs text-danger leading-snug mb-2">{error}</p>}
+        {!report && !loading && !error && (
+          <p className="text-xs text-neutral-600 italic">
+            {tabs.length < 2
+              ? "Open at least two documents to compare."
+              : "Pick two tabs above and press Compare."}
+          </p>
+        )}
+        {report && total === 0 && (
+          <p className="text-xs text-neutral-500">
+            No differences; the two tabs are bookmark-equivalent.
+          </p>
+        )}
+        {report && total > 0 && (
+          <div className="space-y-4">
+            {report.added.length > 0 && (
+              <SnapshotBucket
+                label="Added"
+                detail={`Present in ${report.right_title} only`}
+                tone="text-diff-added bg-diff-added/10"
+                rows={report.added}
+              />
+            )}
+            {report.removed.length > 0 && (
+              <SnapshotBucket
+                label="Removed"
+                detail={`Present in ${report.left_title} only`}
+                tone="text-diff-removed bg-diff-removed/10"
+                rows={report.removed}
+              />
+            )}
+            {report.modified.length > 0 && <ModifiedBucket rows={report.modified} />}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -206,15 +143,10 @@ function TabPicker({
 }) {
   return (
     <label className="flex items-center gap-2 text-xs text-neutral-400">
-      <span className="uppercase tracking-wider text-[10px] text-neutral-500">
-        {label}
-      </span>
+      <span className="uppercase tracking-wider text-[10px] text-neutral-500">{label}</span>
       <select
         value={value ?? ""}
-        onChange={(e) => {
-          const v = e.target.value;
-          onChange(v === "" ? null : Number(v));
-        }}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
         className="bg-surface-3 border border-neutral-700 rounded
                    px-2 py-1 text-xs text-neutral-200
                    focus:outline-none focus:ring-1 focus:ring-accent
@@ -231,29 +163,19 @@ function TabPicker({
   );
 }
 
-interface SimpleRow {
-  url: string;
-  title: string;
-}
-
-function DiffBucket({
+function Bucket({
   label,
-  detail,
+  tone,
   count,
-  rowKind,
-  rows,
+  detail,
+  children,
 }: {
   label: string;
-  detail: string;
+  tone: string;
   count: number;
-  rowKind: "added" | "removed";
-  rows: SimpleRow[];
+  detail: string;
+  children: ReactNode;
 }) {
-  const tone =
-    rowKind === "added"
-      ? "text-diff-added bg-diff-added/10"
-      : "text-diff-removed bg-diff-removed/10";
-
   return (
     <section>
       <header className="flex items-baseline gap-2 mb-1">
@@ -263,49 +185,51 @@ function DiffBucket({
         <span className="text-xs text-neutral-300 font-medium">{count}</span>
         <span className="text-[10px] text-neutral-600">{detail}</span>
       </header>
-      <ul className="border border-neutral-800 rounded divide-y divide-neutral-800">
-        {rows.map((r) => (
-          <li key={r.url} className="px-2 py-1.5">
-            <p className="text-xs text-neutral-200 truncate">{r.title || <em className="text-neutral-600 not-italic">(untitled)</em>}</p>
-            <p className="text-[10px] font-mono text-neutral-500 truncate">{r.url}</p>
-          </li>
-        ))}
-      </ul>
+      <ul className="border border-neutral-800 rounded divide-y divide-neutral-800">{children}</ul>
     </section>
   );
 }
 
-function ModifiedBucket({
-  count,
+function SnapshotBucket({
+  label,
+  detail,
+  tone,
   rows,
 }: {
-  count: number;
-  rows: { before: SimpleRow; after: SimpleRow }[];
+  label: string;
+  detail: string;
+  tone: string;
+  rows: BookmarkSnapshotView[];
 }) {
   return (
-    <section>
-      <header className="flex items-baseline gap-2 mb-1">
-        <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded text-warn bg-warn/10">
-          Modified
-        </span>
-        <span className="text-xs text-neutral-300 font-medium">{count}</span>
-        <span className="text-[10px] text-neutral-600">
-          Same URL, different title
-        </span>
-      </header>
-      <ul className="border border-neutral-800 rounded divide-y divide-neutral-800">
-        {rows.map((r) => (
-          <li key={r.before.url} className="px-2 py-1.5 space-y-0.5">
-            <p className="text-[10px] font-mono text-neutral-500 truncate">
-              {r.before.url}
-            </p>
-            <p className="text-xs text-diff-removed line-through truncate">
-              {r.before.title}
-            </p>
-            <p className="text-xs text-diff-added truncate">{r.after.title}</p>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <Bucket label={label} tone={tone} count={rows.length} detail={detail}>
+      {rows.map((r) => (
+        <li key={r.url} className="px-2 py-1.5">
+          <p className="text-xs text-neutral-200 truncate">
+            {r.title || <em className="text-neutral-600 not-italic">(untitled)</em>}
+          </p>
+          <p className="text-[10px] font-mono text-neutral-500 truncate">{r.url}</p>
+        </li>
+      ))}
+    </Bucket>
+  );
+}
+
+function ModifiedBucket({ rows }: { rows: ModifiedBookmarkView[] }) {
+  return (
+    <Bucket
+      label="Modified"
+      tone="text-warn bg-warn/10"
+      count={rows.length}
+      detail="Same URL, different title"
+    >
+      {rows.map((r) => (
+        <li key={r.before.url} className="px-2 py-1.5 space-y-0.5">
+          <p className="text-[10px] font-mono text-neutral-500 truncate">{r.before.url}</p>
+          <p className="text-xs text-diff-removed line-through truncate">{r.before.title}</p>
+          <p className="text-xs text-diff-added truncate">{r.after.title}</p>
+        </li>
+      ))}
+    </Bucket>
   );
 }

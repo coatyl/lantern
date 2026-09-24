@@ -58,9 +58,6 @@ describe("MergePickerModal", () => {
     );
     expect(screen.getByText("Bookmarks one")).toBeInTheDocument();
     expect(screen.getByText("Bookmarks two")).toBeInTheDocument();
-    // The Merge button is disabled when no picks are present.
-    const mergeBtn = screen.getByRole("button", { name: /^merge$/i });
-    expect(mergeBtn).toBeDisabled();
   });
 
   it("updates the conflict-strategy state when a radio is selected", async () => {
@@ -81,7 +78,7 @@ describe("MergePickerModal", () => {
     expect(keepFirst.checked).toBe(false);
   });
 
-  it("Merge button is disabled until at least one pick is selected", async () => {
+  it("enables Merge once a folder is picked", async () => {
     const user = userEvent.setup();
     vi.mocked(ipc.getTree).mockResolvedValue(tree1);
 
@@ -101,10 +98,11 @@ describe("MergePickerModal", () => {
     await waitFor(() => expect(ipc.getTree).toHaveBeenCalledWith(1));
     await screen.findByText("Folder A");
 
-    // Pick one folder.
+    // Pick one folder: the plan lists it by its path under the tab title.
     const pickButtons = screen.getAllByRole("button", { name: /^pick$/i });
     await user.click(pickButtons[0]);
 
+    expect(screen.getByText("Bookmarks one › Folder A")).toBeInTheDocument();
     await waitFor(() => expect(mergeBtn).not.toBeDisabled());
   });
 });
