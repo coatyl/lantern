@@ -9,9 +9,7 @@ import "@fontsource/jetbrains-mono";           // JetBrains Mono 400
 
 import "./index.css";
 
-// v0.0.9 ships English only; the `locale` prop is hardcoded.  Wiring this
-// up to a settings-persisted preference is intentionally deferred until a
-// second locale lands.  See NFR-L-1 in private/docs/01-PRD.md.
+// Only English ships, so the locale is fixed until a second one lands.
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <I18nProvider locale="en">

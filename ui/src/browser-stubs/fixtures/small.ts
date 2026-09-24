@@ -155,7 +155,6 @@ export function smallFixture(): FixtureState {
     rust_version: "1.80.0",
     git_commit: null,
     license: "Apache-2.0 OR MIT",
-    adr_index_path: "private/docs/adr/",
     signed: false,
   };
 

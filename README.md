@@ -101,4 +101,4 @@ Report vulnerabilities as described in [`SECURITY.md`](SECURITY.md), not in publ
 
 ## Contributing
 
-External pull requests are not accepted yet. [`CONTRIBUTING.md`](CONTRIBUTING.md) describes how the project is developed.
+Issues and pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers setup, the checks to run before a PR, and conventions. Security reports go through [`SECURITY.md`](SECURITY.md), not public issues.

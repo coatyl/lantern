@@ -23,7 +23,7 @@ git_commit: string | null,
 /**
  * SPDX license expression.
  */
-license: string, adr_index_path: string, 
+license: string, 
 /**
  * Whether the Windows signing job signed this binary (`LANTERN_SIGNED`
  * at build time).  Always `false` for local builds.

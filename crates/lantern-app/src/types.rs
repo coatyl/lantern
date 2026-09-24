@@ -726,7 +726,6 @@ pub struct BuildInfo {
     pub git_commit: Option<String>,
     /// SPDX license expression.
     pub license: String,
-    pub adr_index_path: String,
     /// Whether the Windows signing job signed this binary (`LANTERN_SIGNED`
     /// at build time).  Always `false` for local builds.
     pub signed: bool,

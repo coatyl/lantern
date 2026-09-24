@@ -93,7 +93,6 @@ pub fn get_build_info() -> CommandResult<BuildInfo> {
             .to_string(),
         git_commit: None,
         license: "Apache-2.0 OR MIT".to_string(),
-        adr_index_path: "private/adrs/".to_string(),
         // `build.rs` forwards LANTERN_SIGNED, which the Windows signing job
         // sets once signtool succeeds.
         signed: matches!(option_env!("LANTERN_SIGNED"), Some("1" | "true")),

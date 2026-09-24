@@ -8,7 +8,7 @@ Only the latest published release gets fixes. There are no backports before 1.0.
 
 ## Reporting a vulnerability
 
-Email **security@lantern.dev** *(placeholder; TODO: replace with the real address once a project mailbox is registered)*.
+Use GitHub's private vulnerability reporting: on the repository's **Security** tab, choose **Report a vulnerability** (or go to <https://github.com/coatyl/lantern/security/advisories/new>). The report is visible only to the maintainers.
 
 Include, where you can:
 
