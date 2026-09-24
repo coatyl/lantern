@@ -6,33 +6,20 @@ rust-version.workspace = true
 description  = "Tauri application shell for Lantern: glue layer between lantern-core/lantern-io and the React UI."
 
 [lib]
-# Required by Tauri's mobile target; also lets us test state/command logic.
+# cdylib for Tauri's mobile targets; rlib for `main.rs`.
 crate-type = ["cdylib", "rlib"]
 
-# Override the default binary name (Cargo would otherwise name it after the
-# package = "lantern-app").  The user-facing exe is just `lantern.exe`.
+# The user-facing executable is `lantern`, not `lantern-app`.
 [[bin]]
 name = "lantern"
 path = "src/main.rs"
 
-[package.metadata.tauri]
-# Needed for tauri-build to locate the config.
-
-# ─── Build flavors (v0.0.6) ─────────────────────────────────────────────────
-# The default build links the dead-link checker (and therefore reqwest/tokio/
-# rustls) into the final binary.  An offline-only build is produced with
-# `--no-default-features`, which drops the `checker` feature.  The
-# `lantern-net` dependency is kept unconditional because the workspace still
-# refers to its always-available result types (`LinkStatus`, `should_check`,
-# `classify_status`, …); only the heavyweight async runtime + TLS stack lives
-# behind `lantern-net/checker`.
-#
-# The CI `offline-build-symbol-check` job runs `cargo tree` on the
-# no-default-features build and asserts that reqwest, tokio, and hyper are
-# absent from the resolved dependency graph.
+# The default build includes the opt-in dead-link checker.  The offline build
+# (`--no-default-features`) drops `lantern-net` entirely, so no networking
+# crate (reqwest, hyper, rustls) is linked; CI checks this with `cargo tree`.
 [features]
 default = ["checker"]
-checker = ["lantern-net/checker"]
+checker = ["dep:lantern-net", "lantern-net/checker"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -40,7 +27,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 lantern-core = { workspace = true }
 lantern-io   = { workspace = true }
-lantern-net  = { workspace = true }
+lantern-net  = { workspace = true, optional = true }
 indexmap     = { workspace = true }
 parking_lot  = { workspace = true }
 serde        = { workspace = true }
@@ -56,3 +43,5 @@ tauri-plugin-shell  = "2"
 
 [dev-dependencies]
 tempfile     = { workspace = true }
+# Mock runtime for driving commands and the IPC layer in unit tests.
+tauri        = { version = "2", features = ["test"] }
