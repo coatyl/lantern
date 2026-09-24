@@ -3,7 +3,7 @@ name        = "lantern-cli"
 version.workspace      = true
 edition.workspace      = true
 rust-version.workspace = true
-description = "Command-line companion to the Lantern Tauri app: sanitise and inspect Netscape bookmark files from the shell."
+description = "Command-line companion to the Lantern Tauri app: sanitise, inspect, and convert bookmark files from the shell."
 
 [[bin]]
 name = "lantern"

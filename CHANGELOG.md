@@ -13,6 +13,38 @@ Work toward **0.2.0**.  Breaking changes are still allowed until v1.0,
 which will be **the stability promise**; from then on breaking changes
 require a major-version bump.
 
+### Added
+
+- **core / io:** Chrome / Chromium `Bookmarks` JSON reader
+  (`lantern_core::parser::parse_chrome_json`) with auto-detect in
+  `lantern-io::read_bookmark_file`. Firefox HTML already worked (same
+  Netscape format). Read-only: the profile file is never written.
+- **cli:** `lantern convert <input> -o <output>` emits Netscape HTML
+  from any supported input so the GUI can open the result later.
+  `info` and `sanitize` accept JSON too.
+- **ui:** command palette (`Ctrl+K` / `⌘K`) for Open file, Settings,
+  Export, Run pass, Focus search, Compare tabs, Check dead links,
+  Merge documents, and Toggle theme. Settings → Keyboard lists it.
+- **core / cli:** exact-URL duplicate review pass
+  (`structure.duplicates.exact_url`) and a dedicated built-in rule set
+  **Find duplicates**. Groups bookmarks that share a URL after a light
+  canonicalisation (lowercase host, strip trailing slash), keeps the
+  oldest `ADD_DATE` (or first-seen), and proposes `DeleteNode` changes
+  that are destructive and unapproved. Query-parameter and fragment
+  differences are not collapsed in this slice. CLI `--dry-run` lists
+  each proposed deletion; a real `lantern sanitize` run still
+  auto-approves (documented in `--help` and `README.md`). The GUI
+  does not auto-apply.
+
+### Changed
+
+- **ui:** first cut of the warm-archive identity. Dark surfaces shift
+  from cool `#0a0a0a` greys to ink / brown-black; light theme is paper,
+  not an inverted IDE. The amber accent keeps a glow companion. Empty
+  states are instructional rather than "no data". Title bar and status
+  bar pick up the wordmark and offline-badge treatment. No new network,
+  telemetry, or font payload (Inter Variable already shipped).
+
 ---
 
 ## [0.1.0] - 2026-09-24
@@ -25,9 +57,9 @@ bug (see "Since the 2026-05-05 freeze").  The v0.0.x entries further
 down are internal milestones: none of them were tagged or published.
 
 An early, pre-1.0 milestone.  Ten months of development across nine
-milestones (v0.0.1 through v0.0.11) converge here.  Every PRD requirement either meets its NFR target or has a
-documented operational caveat
-(`private/docs/17-known-limitations-v0.1.md`).  357 Rust + 70 Vitest +
+milestones (v0.0.1 through v0.0.11) converge here.  Every PRD
+requirement either meets its NFR target or has a documented operational
+caveat (`private/docs/17-known-limitations-v0.1.md`).  357 Rust + 70 Vitest +
 8 Playwright E2E specs, all green.  Code-signing scaffolding ships
 unsigned pending certificate procurement; NVDA test plan ships ready
 for first execution.

@@ -20,6 +20,7 @@ describe("EmptyState", () => {
         description="Add one to see it here."
       />,
     );
+    expect(screen.getByRole("region", { name: "No items" })).toBeInTheDocument();
     expect(screen.getByText("No items")).toBeInTheDocument();
     expect(
       screen.getByText("Add one to see it here."),

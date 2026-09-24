@@ -23,7 +23,8 @@ use lantern_core::sanitize::pass::PassTarget;
 use lantern_core::sanitize::treatment::{Change, TreatmentCategory};
 use lantern_core::sanitize::treatments::{
     AffiliateTreatment, AuthorSuffixTreatment, ClickIdsTreatment, CustomQpTreatment,
-    DemobilizeTreatment, EmailTreatment, FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment,
+    DeduplicateTreatment, DemobilizeTreatment, EmailTreatment, EmptyFoldersTreatment,
+    ExactUrlDuplicatesTreatment, FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment,
     FragmentTrackingTreatment, HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment,
     RegexFolderTreatment, RegexTitleTreatment, SearchTokensTreatment, SessionTreatment,
     StripFragmentTreatment, UnshortenOfflineTreatment, UserSegmentTreatment, UtmTreatment,
@@ -1956,6 +1957,9 @@ fn builtin_treatment_catalogue() -> Vec<TreatmentInfo> {
         Box::new(FolderWhitespaceTreatment),
         Box::new(FolderHtmlEntitiesTreatment),
         Box::new(RegexFolderTreatment::empty()),
+        Box::new(DeduplicateTreatment),
+        Box::new(EmptyFoldersTreatment),
+        Box::new(ExactUrlDuplicatesTreatment),
     ];
 
     instances
@@ -2005,6 +2009,12 @@ fn default_shortcuts() -> Vec<ShortcutBinding> {
         s("search", "Search", "Ctrl+F", "View"),
         s("filter_drawer", "Filter drawer", "Ctrl+Shift+F", "View"),
         // Tools
+        s(
+            "command_palette",
+            "Command palette",
+            "Ctrl+K / ⌘K",
+            "Tools",
+        ),
         s("settings", "Open settings", "Ctrl+,", "Tools"),
         s(
             "compare_tabs",
@@ -2108,6 +2118,10 @@ mod settings_ui_tests {
         assert!(combos.contains(&"Ctrl+O"), "missing Ctrl+O");
         assert!(combos.contains(&"Ctrl+,"), "missing Ctrl+,");
         assert!(combos.contains(&"Ctrl+M"), "missing Ctrl+M");
+        assert!(
+            combos.contains(&"Ctrl+K / ⌘K"),
+            "missing command-palette Ctrl+K"
+        );
     }
 
     #[test]

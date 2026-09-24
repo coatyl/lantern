@@ -63,6 +63,7 @@ import { EmptyState, EmptyFolderIcon, EmptySearchIcon } from "../components/Empt
 import { useElementSize } from "../hooks/useElementSize";
 import { useT } from "../i18n/I18nProvider";
 import { useToast } from "../hooks/useToast";
+import { SEARCH_FOCUS_EVENT } from "../components/commandPalette";
 import type { FolderItem, SortColumn } from "../ipc/types";
 
 const COLUMNS: { key: SortColumn | null; label: string; className: string }[] = [
@@ -159,6 +160,16 @@ export default function ListPane() {
   const [searchUrls, setSearchUrls]     = useState(true);
   const [searchMode, setSearchMode]     = useState<SearchMode>("substring");
   const [searching, setSearching]       = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const focusSearch = () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+    window.addEventListener(SEARCH_FOCUS_EVENT, focusSearch);
+    return () => window.removeEventListener(SEARCH_FOCUS_EVENT, focusSearch);
+  }, []);
 
   // ── Filter drawer (server-side, store-backed) ─────────────────────────────
   const [showFilter, setShowFilter] = useState(false);
@@ -297,9 +308,10 @@ export default function ListPane() {
     const handler = (e: KeyboardEvent) => {
       const active = document.activeElement;
       const inSearch = active && active.closest("form");
+      const inDialog = active && active.closest('[role="dialog"]');
       const inRename = active && (active as HTMLElement).dataset.renameInput;
       const inCreate = active && (active as HTMLElement).dataset.createInput;
-      if (inSearch || inRename || inCreate) return;
+      if (inSearch || inDialog || inRename || inCreate) return;
 
       const {
         items,
@@ -490,7 +502,9 @@ export default function ListPane() {
         className="flex items-center gap-1.5 px-2 py-1.5 border-b border-neutral-800 shrink-0"
       >
         <input
+          ref={searchInputRef}
           type="search"
+          data-lantern-search
           placeholder={SEARCH_MODE_PLACEHOLDER[searchMode]}
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}

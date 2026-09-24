@@ -329,7 +329,7 @@ export interface AppSettings {
 export interface RuleSetSummary {
   name: string;
   treatment_count: number;
-  /** True for the 3 seeded rule sets (Minimal clean / Aggressive scrub / Full scrub). */
+  /** True for the shipped built-in rule sets (Minimal clean / Aggressive scrub / Full scrub / Find duplicates). */
   is_builtin: boolean;
   /** Absolute path to the .lantern-rules.toml file (always set; built-ins are seeded on startup). */
   path: string;

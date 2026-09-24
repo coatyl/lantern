@@ -17,7 +17,7 @@ pub type CommandResult<T> = Result<T, UiError>;
 pub enum UiError {
     /// A filesystem read or write failed.
     Io(String),
-    /// The bookmark file could not be parsed (not a Netscape bookmark file).
+    /// The bookmark file could not be parsed (not Netscape HTML or Chrome JSON).
     Parse {
         line: u32,
         column: u32,

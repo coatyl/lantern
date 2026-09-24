@@ -1,4 +1,9 @@
-//! Read and write Netscape bookmark HTML files.
+//! Read bookmark files and write Netscape bookmark HTML.
+//!
+//! Reads accept Netscape / Firefox HTML **or** Chrome / Chromium
+//! `Bookmarks` JSON (auto-detected from the bytes). Writes always emit
+//! Netscape HTML via the existing emitter — Lantern never writes back to
+//! a browser profile.
 //!
 //! # Source-file protection (PRD F-EXP-7)
 //!
@@ -20,16 +25,20 @@ use crate::error::{IoError, Result};
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Read a Netscape bookmark HTML file from `path` into a [`Document`].
+/// Read a bookmark file from `path` into a [`Document`].
 ///
-/// Opens the file read-only (PRD F-IMP-5).
+/// Accepts Netscape / Firefox HTML and Chrome / Chromium `Bookmarks`
+/// JSON. Format is sniffed from the bytes (a leading `{` / `[` after a
+/// BOM and whitespace selects the JSON parser). Opens the file read-only
+/// (PRD F-IMP-5); the original path is recorded so
+/// [`write_bookmark_file`] can refuse to overwrite it.
 pub fn read_bookmark_file(path: &Path) -> Result<Document> {
     let bytes = std::fs::read(path).map_err(|e| IoError::Read {
         path: path.to_owned(),
         source: e,
     })?;
 
-    let mut doc = lantern_core::parser::parse(&bytes).map_err(|e| IoError::BookmarkParse {
+    let mut doc = lantern_core::parser::parse_auto(&bytes).map_err(|e| IoError::BookmarkParse {
         path: path.to_owned(),
         source: e,
     })?;
@@ -122,6 +131,53 @@ mod tests {
             panic!()
         };
         assert_eq!(bm.title, "Example");
+    }
+
+    #[test]
+    fn reads_chrome_bookmarks_json() {
+        let dir = tempfile::tempdir().unwrap();
+        // Chromium's on-disk name has no extension; detection is by content.
+        let src = dir.path().join("Bookmarks");
+        let fixture = include_str!("../tests/fixtures/chrome-bookmarks.json");
+        std::fs::write(&src, fixture).unwrap();
+
+        let doc = read_bookmark_file(&src).unwrap();
+        assert_eq!(doc.stats.bookmark_count, 3);
+        assert_eq!(doc.stats.folder_count, 3);
+        assert_eq!(doc.path.as_deref(), Some(src.as_path()));
+
+        let Node::Folder(bar) = &doc.root.children[0] else {
+            panic!("expected Bookmarks bar");
+        };
+        assert!(bar.is_toolbar);
+        let Node::Bookmark(bm) = &bar.children[0] else {
+            panic!("expected UTM bookmark");
+        };
+        assert!(bm.url.as_str().contains("utm_source="));
+    }
+
+    #[test]
+    fn convert_json_write_emits_netscape_html() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("Bookmarks");
+        let dst = dir.path().join("bookmarks.html");
+        let fixture = include_str!("../tests/fixtures/chrome-bookmarks.json");
+        std::fs::write(&src, fixture).unwrap();
+
+        let doc = read_bookmark_file(&src).unwrap();
+        write_bookmark_file(&dst, &doc, &EmitOptions::default()).unwrap();
+
+        let emitted = std::fs::read_to_string(&dst).unwrap();
+        assert!(
+            emitted.contains("<!DOCTYPE NETSCAPE-Bookmark-file-1>"),
+            "convert output must be Netscape HTML"
+        );
+        assert!(emitted.contains("utm_source=newsletter"));
+
+        // The GUI path: re-open the emitted HTML.
+        let doc2 = read_bookmark_file(&dst).unwrap();
+        assert_eq!(doc2.stats.bookmark_count, doc.stats.bookmark_count);
+        assert_eq!(doc2.stats.folder_count, doc.stats.folder_count);
     }
 
     #[test]
