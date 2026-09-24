@@ -2,7 +2,6 @@
 import type { DiffTag } from "./DiffTag";
 
 /**
- * One contiguous run of characters in a change-preview diff (mirror of
- * [`lantern_core::sanitize::diff::DiffSpan`]).
+ * One run of characters in a change-preview diff.
  */
 export type DiffSpan = { tag: DiffTag, text: string, };

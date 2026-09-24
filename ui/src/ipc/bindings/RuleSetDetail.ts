@@ -2,17 +2,14 @@
 import type { RuleSetTreatment } from "./RuleSetTreatment";
 
 /**
- * Full detail for one rule set (treatment list in order) used by the editor.
+ * One rule set with its ordered treatments, for the editor.
  */
 export type RuleSetDetail = { name: string, 
 /**
- * Ordered treatment IDs.  Convenience shortcut for callers that don't
- * care about per-treatment config (most of the UI).
+ * Ordered treatment ids.
  */
 treatment_ids: Array<string>, 
 /**
- * Same order as `treatment_ids` but pairs each ID with its current
- * configuration as a JSON object (e.g. `{"params": [...]}` for
- * `url.qp.custom`).  `null` for stateless treatments.
+ * The same treatments, each with its configuration.
  */
 treatments: Array<RuleSetTreatment>, is_builtin: boolean, path: string, };

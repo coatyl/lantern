@@ -3,10 +3,7 @@ import type { ListDensitySetting } from "./ListDensitySetting";
 import type { ThemeSetting } from "./ThemeSetting";
 
 /**
- * User-facing subset of [`lantern_io::Settings`].
- *
- * Runtime-managed fields (recent files, recoverable documents, session flag)
- * are intentionally omitted: the UI edits preferences, not internal state.
+ * The user-editable part of [`lantern_io::Settings`] plus where it lives.
  */
 export type AppSettings = { theme: ThemeSetting, dead_link_checker_opt_in: boolean, recent_files_max: number, crash_recovery_enabled: boolean, 
 /**
@@ -14,11 +11,10 @@ export type AppSettings = { theme: ThemeSetting, dead_link_checker_opt_in: boole
  */
 list_density: ListDensitySetting, 
 /**
- * Path to the on-disk settings file (read-only; shown for the "locate
- * settings" affordance in the UI).
+ * Read-only: ignored by `update_settings`.
  */
 settings_path: string, 
 /**
- * Path to the directory holding `*.lantern-rules.toml` files.
+ * Read-only: ignored by `update_settings`.
  */
 rules_dir: string, };

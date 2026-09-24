@@ -2,10 +2,10 @@
 import type { LogLevel } from "./LogLevel";
 
 /**
- * One parsed log entry: output of `get_logs`.
+ * One parsed line of `get_logs`.
  */
 export type LogEntry = { 
 /**
- * ISO 8601 timestamp string copied verbatim from the log file.
+ * Timestamp copied verbatim from the log file.
  */
 timestamp: string, level: LogLevel, message: string, };

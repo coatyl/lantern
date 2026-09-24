@@ -1,12 +1,9 @@
-//! Serialisable view-model types that cross the Tauri IPC boundary.
+//! View models that cross the IPC boundary: flat, JSON-friendly mirrors of
+//! the `lantern-core` / `lantern-io` types.
 //!
-//! These are the shapes the UI receives from commands.  They are intentionally
-//! flat and JSON-friendly; the richer domain types live in `lantern-core` and
-//! are converted here.
-//!
-//! TypeScript counterparts live in `ui/src/ipc/types.ts`.  Run
-//! `cargo test -p lantern-app export_bindings` to regenerate them from these
-//! derives whenever types change.
+//! `cargo test -p lantern-app export_bindings` writes TypeScript bindings for
+//! the `#[ts(export)]` types to `ui/src/ipc/bindings/`.  The UI's own
+//! `ui/src/ipc/types.ts` must be kept in step by hand.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -51,7 +48,7 @@ pub struct DocStats {
 // Tree pane
 // ---------------------------------------------------------------------------
 
-/// Recursive folder tree for the left pane.
+/// Full folder tree of a document (merge picker).
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct TreeView {
@@ -67,21 +64,15 @@ pub struct TreeNode {
     pub children: Vec<TreeNode>,
 }
 
-/// Single tree row used by the v0.0.8 progressive tree expansion API.
-///
-/// Unlike [`TreeNode`], this struct does **not** carry its descendants;
-/// the UI fetches them lazily through [`crate::commands::get_tree_children`]
-/// when the user expands a folder.  The `has_children` flag tells the UI
-/// whether to render an expand chevron for this row.
+/// One tree-pane row.  Unlike [`TreeNode`] it carries no descendants; the
+/// tree pane fetches them with `get_tree_children` on expand.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct TreeNodeLazy {
     #[ts(type = "number")]
     pub id: NodeId,
     pub name: String,
-    /// `true` if this folder has any folder children that the UI should
-    /// render an expand chevron for; `false` for leaves.  Children
-    /// themselves are fetched lazily via `get_tree_children`.
+    /// Whether the folder contains folders, i.e. gets an expand chevron.
     pub has_children: bool,
 }
 
@@ -105,7 +96,7 @@ pub struct FolderItem {
     pub kind: ItemKind,
     pub title: String,
     pub url: Option<String>,
-    /// Registered domain (eTLD+1) extracted from the URL, if valid.
+    /// URL host without a leading `www.`, if the URL parses.
     pub domain: Option<String>,
     #[ts(type = "number | null")]
     pub add_date: Option<i64>,
@@ -123,7 +114,7 @@ pub enum ItemKind {
 }
 
 // ---------------------------------------------------------------------------
-// Sorting (from UI → Rust)
+// Sorting and search (UI -> Rust)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
@@ -142,10 +133,6 @@ pub enum SortColumn {
     AddDate,
     LastModified,
 }
-
-// ---------------------------------------------------------------------------
-// Search (from UI → Rust)
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -174,14 +161,11 @@ fn default_true() -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Structured filter (v0.0.5): applied by both `search` and `get_folder_items`
+// Structured filter, applied by `search` and `get_folder_items`
 // ---------------------------------------------------------------------------
 
-/// Combined filter applied during browsing or searching.
-///
-/// All fields are optional.  An axis is "active" when it is `Some(...)`
-/// and the contained constraint is non-empty.  Multiple active axes
-/// compose with logical AND.
+/// An axis is active when it is `Some` and non-empty; active axes compose
+/// with AND.
 #[derive(Debug, Deserialize, Default)]
 pub struct FilterSpec {
     /// If set, only items whose `kind` is in this list survive.
@@ -193,13 +177,13 @@ pub struct FilterSpec {
     #[serde(default)]
     pub date_range: Option<DateRange>,
 
-    /// Allowlist of registered domains (eTLD+1).  Case-insensitive match
-    /// against `FolderItem::domain`.  Folders / separators are unaffected.
+    /// Allowlist of domains, compared case-insensitively with
+    /// `FolderItem::domain`.  Folders / separators are unaffected.
     #[serde(default)]
     pub domains: Option<Vec<String>>,
 
-    /// Allowlist of TLDs (e.g. `"com"`, `"org"`).  Match the last label of
-    /// the registered domain.  Folders / separators are unaffected.
+    /// Allowlist of TLDs (e.g. `"com"`, `"org"`), matched against the last
+    /// label of the domain.  Folders / separators are unaffected.
     #[serde(default)]
     pub tlds: Option<Vec<String>>,
 
@@ -208,8 +192,8 @@ pub struct FilterSpec {
     #[serde(default)]
     pub schemes: Option<Vec<String>>,
 
-    /// Folder-depth bracket relative to the document root.  Root folders
-    /// are at depth 0.  Applied to every item (including folders).
+    /// Depth bracket below the document root (root children are depth 0).
+    /// Only applied by `search`; browsing a single folder ignores it.
     #[serde(default)]
     pub depth: Option<DepthFilter>,
 }
@@ -258,8 +242,7 @@ pub struct RecoveryRestoreReport {
 // Sanitization
 // ---------------------------------------------------------------------------
 
-/// One contiguous run of characters in a change-preview diff (mirror of
-/// [`lantern_core::sanitize::diff::DiffSpan`]).
+/// One run of characters in a change-preview diff.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct DiffSpan {
@@ -296,8 +279,7 @@ impl From<lantern_core::sanitize::diff::DiffSpan> for DiffSpan {
     }
 }
 
-/// Serialisable representation of one proposed change, sent to the preview
-/// panel.
+/// One proposed change, as shown on the review surface.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct ChangeEntry {
@@ -306,22 +288,22 @@ pub struct ChangeEntry {
     pub index: usize,
     #[ts(type = "number")]
     pub node_id: NodeId,
-    /// "url" | "title" | "folder_name"
+    /// `"url"`, `"title"`, `"folder_name"`, `"node"` (deletion) or
+    /// `"flag:<name>"`.
     pub field: String,
     pub before: String,
     pub after: String,
-    /// Char-level diff spans reconstructing `before` (use for strikethrough rendering).
+    /// Character diff spans that rebuild `before`.
     pub before_spans: Vec<DiffSpan>,
-    /// Char-level diff spans reconstructing `after` (use for highlight rendering).
+    /// Character diff spans that rebuild `after`.
     pub after_spans: Vec<DiffSpan>,
     pub treatment_id: String,
     pub rationale: String,
     pub destructive: bool,
     /// Initial approval state (true for non-destructive changes).
     pub approved: bool,
-    /// Title (bookmark) or name (folder) of the node, as it is before the
-    /// change.  Lets the review surface say *what* a change touches; for a
-    /// deletion it is the only description of the node.
+    /// Title (bookmark) or name (folder) before the change; for a deletion
+    /// the only description of the node.
     pub node_title: String,
     /// The node's URL before the change (bookmarks only).
     pub node_url: Option<String>,
@@ -330,7 +312,7 @@ pub struct ChangeEntry {
     pub location: Vec<String>,
 }
 
-/// Return value of `run_pass`: what the UI shows in the preview panel.
+/// Return value of `run_pass`.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct ChangeSetPreview {
@@ -352,10 +334,7 @@ pub struct ApplyReport {
 // Settings
 // ---------------------------------------------------------------------------
 
-/// User-facing subset of [`lantern_io::Settings`].
-///
-/// Runtime-managed fields (recent files, recoverable documents, session flag)
-/// are intentionally omitted: the UI edits preferences, not internal state.
+/// The user-editable part of [`lantern_io::Settings`] plus where it lives.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct AppSettings {
@@ -366,10 +345,9 @@ pub struct AppSettings {
     pub crash_recovery_enabled: bool,
     /// List-row density for the bookmark list pane.
     pub list_density: ListDensitySetting,
-    /// Path to the on-disk settings file (read-only; shown for the "locate
-    /// settings" affordance in the UI).
+    /// Read-only: ignored by `update_settings`.
     pub settings_path: String,
-    /// Path to the directory holding `*.lantern-rules.toml` files.
+    /// Read-only: ignored by `update_settings`.
     pub rules_dir: String,
 }
 
@@ -432,48 +410,43 @@ impl From<ThemeSetting> for lantern_io::Theme {
 // Rule sets
 // ---------------------------------------------------------------------------
 
-/// Summary for a single rule set, used by `list_rule_sets`.
+/// One row of `list_rule_sets`.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct RuleSetSummary {
     pub name: String,
-    /// Treatment count (for the card subtitle in the UI).
     #[ts(type = "number")]
     pub treatment_count: u32,
-    /// True for the shipped built-in rule sets.
     pub is_builtin: bool,
-    /// Absolute path to the `.lantern-rules.toml` file.
+    /// Path of the `.lantern-rules.toml` file.
     pub path: String,
 }
 
-/// Full detail for one rule set (treatment list in order) used by the editor.
+/// One rule set with its ordered treatments, for the editor.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct RuleSetDetail {
     pub name: String,
-    /// Ordered treatment IDs.  Convenience shortcut for callers that don't
-    /// care about per-treatment config (most of the UI).
+    /// Ordered treatment ids.
     pub treatment_ids: Vec<String>,
-    /// Same order as `treatment_ids` but pairs each ID with its current
-    /// configuration as a JSON object (e.g. `{"params": [...]}` for
-    /// `url.qp.custom`).  `null` for stateless treatments.
+    /// The same treatments, each with its configuration.
     pub treatments: Vec<RuleSetTreatment>,
     pub is_builtin: bool,
     pub path: String,
 }
 
-/// One ordered entry in a rule-set, exposed to the UI.
+/// One treatment in a rule set.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct RuleSetTreatment {
     pub id: String,
-    /// JSON-shaped current config (e.g. `{"params": ["fbclid"]}`).  `null`
-    /// when the treatment has no parameters or when it is unconfigured.
+    /// Configuration as JSON (e.g. `{"params": ["fbclid"]}`); `null` for
+    /// treatments without parameters.
     #[ts(type = "Record<string, unknown> | null")]
     pub config: Option<serde_json::Value>,
 }
 
-/// Treatment registry entry: metadata for the "Add treatment" picker in the UI.
+/// One entry of the "Add treatment" picker.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct TreatmentInfo {
@@ -494,11 +467,7 @@ pub struct TreatmentInfo {
 pub enum ExportScope {
     /// Export the entire document.
     WholeDocument,
-    /// Export only the subtree rooted at `root_id`.  v0.0.5.
-    ///
-    /// The exported file is a self-contained Netscape bookmark file whose
-    /// `<H1>` is the source folder's title.  Source-document undo state and
-    /// the original path are not propagated; the subtree starts "clean".
+    /// Export only the folder `root_id` and everything below it.
     Subtree { root_id: NodeId },
 }
 
@@ -510,19 +479,11 @@ pub struct ExportReport {
 }
 
 // ---------------------------------------------------------------------------
-// Dead-link checker (v0.0.4)
+// Dead-link checker (`checker` feature only, like everything using
+// `lantern-net`)
 // ---------------------------------------------------------------------------
-//
-// All checker types are gated behind the `checker` feature so the
-// `--no-default-features` (offline-only, v0.0.6) build does not reference any
-// of the lantern-net types (even the always-available result enums), keeping
-// the binary's symbol surface free of any networking-adjacent identifiers.
 
-/// One row of [`LinkCheckReport::entries`]: the bookmark and what came back
-/// from probing it.
-///
-/// The `status` field mirrors [`lantern_net::LinkStatus`] using the same
-/// internally-tagged JSON shape so the UI can pattern-match by `status.kind`.
+/// One probed bookmark.
 #[cfg(feature = "checker")]
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
@@ -532,15 +493,13 @@ pub struct LinkCheckEntry {
     pub url: String,
     pub title: String,
     pub status: LinkStatusView,
-    /// Time-to-status, milliseconds.  `0` for skipped URLs.
+    /// Milliseconds until a status was known; `0` for skipped URLs.
     #[ts(type = "number")]
     pub elapsed_ms: u64,
 }
 
-/// JSON-stable mirror of [`lantern_net::LinkStatus`].
-///
-/// We keep our own type rather than re-exporting the lantern-net one because
-/// `ts_rs` cannot derive bindings for a type that lives in another crate.
+/// Mirror of [`lantern_net::LinkStatus`], tagged by `kind`.  A local type
+/// because `ts-rs` cannot derive bindings for another crate's types.
 #[cfg(feature = "checker")]
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
@@ -615,14 +574,13 @@ impl From<lantern_net::LinkStatus> for LinkStatusView {
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct LinkCheckReport {
     pub entries: Vec<LinkCheckEntry>,
-    /// Number of bookmarks the document contained when the report was built.
     pub total_bookmarks: usize,
-    /// Number of entries that actually hit the network (`total - skipped`).
+    /// Entries that went to the network (not skipped).
     pub probed: usize,
 }
 
 // ---------------------------------------------------------------------------
-// Document diff (v0.0.4)
+// Document diff
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -639,7 +597,7 @@ pub struct ModifiedBookmarkView {
     pub after: BookmarkSnapshotView,
 }
 
-/// Three-way diff between two open tabs: the result of `compare_tabs`.
+/// Result of `compare_tabs`.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct DocDiffReport {
@@ -669,11 +627,10 @@ impl From<lantern_core::diff::ModifiedBookmark> for ModifiedBookmarkView {
 }
 
 // ---------------------------------------------------------------------------
-// Cross-document merge (v0.0.7)
+// Cross-document merge
 // ---------------------------------------------------------------------------
 
-/// One subtree to fold into a merge.  The UI passes tab IDs (which the
-/// command resolves to source-document indices).
+/// One subtree to copy into a merge.
 #[derive(Debug, Clone, Deserialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct MergePickRequest {
@@ -683,14 +640,13 @@ pub struct MergePickRequest {
     pub root_node_id: NodeId,
 }
 
-/// IPC mirror of [`lantern_core::model::merge::ConflictStrategy`].
-///
-/// The two enums are kept separate so the core stays serde-free and the IPC
-/// boundary controls its own JSON shape.  Use the `From` impls below to
-/// convert.
+/// Mirror of [`lantern_core::model::merge::ConflictStrategy`]; the core
+/// stays serde-free.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 #[serde(rename_all = "snake_case")]
+// The shared prefix is the vocabulary: these names are the IPC values.
+#[allow(clippy::enum_variant_names)]
 pub enum ConflictStrategyView {
     KeepFirst,
     KeepNewest,
@@ -708,16 +664,14 @@ impl From<ConflictStrategyView> for lantern_core::model::merge::ConflictStrategy
 }
 
 // ---------------------------------------------------------------------------
-// Settings UI completeness: Keyboard / Logs / About panes (v0.0.7)
+// Keyboard, Logs and About panes
 // ---------------------------------------------------------------------------
 
-/// One row in the keyboard-shortcuts table.  Hardcoded for v0.0.7; rebinding
-/// is deferred to a later milestone (PRD §8.9 captures the canonical list).
+/// One row of the keyboard-shortcuts table.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct ShortcutBinding {
-    /// Stable identifier (e.g. `"open_file"`).  Used as the React `key` and as
-    /// the future hook for user-rebinding.
+    /// Stable identifier (e.g. `"open_file"`), used as the React `key`.
     pub action_id: String,
     /// Human-readable label (e.g. `"Open file"`).
     pub label: String,
@@ -727,18 +681,17 @@ pub struct ShortcutBinding {
     pub category: String,
 }
 
-/// One parsed log entry: output of `get_logs`.
+/// One parsed line of `get_logs`.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 pub struct LogEntry {
-    /// ISO 8601 timestamp string copied verbatim from the log file.
+    /// Timestamp copied verbatim from the log file.
     pub timestamp: String,
     pub level: LogLevel,
     pub message: String,
 }
 
-/// Severity level.  `Info` is the default for unrecognised level strings so
-/// malformed lines don't surface as errors to the user.
+/// Log severity.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../../ui/src/ipc/bindings/")]
 #[serde(rename_all = "snake_case")]
@@ -749,8 +702,7 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
-    /// Lenient parse from the level column of a log line.  Anything we don't
-    /// recognise becomes `Info`; see the doc comment on the enum.
+    /// Parse a log line's level column; anything unrecognised is `Info`.
     pub fn from_token(s: &str) -> Self {
         match s.to_ascii_uppercase().as_str() {
             "WARN" | "WARNING" => Self::Warn,
@@ -768,17 +720,14 @@ pub struct BuildInfo {
     pub version: String,
     /// `"default"` (full build) or `"offline-only"` (no `checker` feature).
     pub build_flavor: String,
-    /// Compile-time Rust version, captured by `build.rs`.
+    /// `rustc -V` output captured by `build.rs`.
     pub rust_version: String,
-    /// Reserved for future use; always `None` until a git stamp is wired in.
+    /// Always `None`: no git stamp is embedded yet.
     pub git_commit: Option<String>,
-    /// SPDX-style license string (matches the workspace `LICENSE` file).
+    /// SPDX license expression.
     pub license: String,
-    /// Informational reference path to the ADR index.
     pub adr_index_path: String,
-    /// `true` if the binary was Authenticode-signed at build time.  Driven
-    /// by the `LANTERN_SIGNED=1` environment variable read by the build
-    /// script, which the CI sign-windows job sets after `signtool` succeeds.
-    /// Local dev builds always report `false`.
+    /// Whether the Windows signing job signed this binary (`LANTERN_SIGNED`
+    /// at build time).  Always `false` for local builds.
     pub signed: bool,
 }

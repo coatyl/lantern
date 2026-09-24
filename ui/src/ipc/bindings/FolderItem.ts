@@ -3,6 +3,6 @@ import type { ItemKind } from "./ItemKind";
 
 export type FolderItem = { id: number, kind: ItemKind, title: string, url: string | null, 
 /**
- * Registered domain (eTLD+1) extracted from the URL, if valid.
+ * URL host without a leading `www.`, if the URL parses.
  */
 domain: string | null, add_date: number | null, last_modified: number | null, };

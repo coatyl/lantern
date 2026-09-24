@@ -2,8 +2,7 @@
 import type { DiffSpan } from "./DiffSpan";
 
 /**
- * Serialisable representation of one proposed change, sent to the preview
- * panel.
+ * One proposed change, as shown on the review surface.
  */
 export type ChangeEntry = { 
 /**
@@ -12,15 +11,16 @@ export type ChangeEntry = {
  */
 index: number, node_id: number, 
 /**
- * "url" | "title" | "folder_name"
+ * `"url"`, `"title"`, `"folder_name"`, `"node"` (deletion) or
+ * `"flag:<name>"`.
  */
 field: string, before: string, after: string, 
 /**
- * Char-level diff spans reconstructing `before` (use for strikethrough rendering).
+ * Character diff spans that rebuild `before`.
  */
 before_spans: Array<DiffSpan>, 
 /**
- * Char-level diff spans reconstructing `after` (use for highlight rendering).
+ * Character diff spans that rebuild `after`.
  */
 after_spans: Array<DiffSpan>, treatment_id: string, rationale: string, destructive: boolean, 
 /**
@@ -28,9 +28,8 @@ after_spans: Array<DiffSpan>, treatment_id: string, rationale: string, destructi
  */
 approved: boolean, 
 /**
- * Title (bookmark) or name (folder) of the node, as it is before the
- * change.  Lets the review surface say *what* a change touches; for a
- * deletion it is the only description of the node.
+ * Title (bookmark) or name (folder) before the change; for a deletion
+ * the only description of the node.
  */
 node_title: string, 
 /**
