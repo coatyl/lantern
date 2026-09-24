@@ -1,11 +1,12 @@
 # target/ and build/releases
 
-What a build writes, what this folder is for, and the v1.0.0 artefacts that existed on disk before the working copy left `Build\Lantern`.
+What a build writes, what this folder is for, how published releases are made, and the v1.0.0 artefacts that existed on disk before the working copy left `Build\Lantern`.
 
 ## Contents
 
 - [target/](#target)
 - [This folder](#this-folder)
+- [Published releases](#published-releases)
 - [v1.0.0 artefacts (2026-05-06)](#v100-artefacts-2026-05-06)
 - [How to rebuild](#how-to-rebuild)
 
@@ -21,7 +22,35 @@ On the machine that built v1.0.0, four ship files were copied into `target/lante
 
 `build/releases/` is documentation of what shipped. It does not hold the binaries. Rebuild from source; the hashes below are how you check a rebuild against the 2026-05-06 copies.
 
+## Published releases
+
+[v0.1.0](https://github.com/coatyl/lantern/releases/tag/v0.1.0) is the first published release and the first git tag. Releases live on the [GitHub releases page](https://github.com/coatyl/lantern/releases); `.github/workflows/release.yml` builds them on `windows-latest` from the tagged commit.
+
+Each release carries four binaries and a checksum file:
+
+| File | Built with |
+|---|---|
+| `lantern-v<ver>-portable-x64.exe` | `tauri.portable.conf.json` |
+| `lantern-v<ver>-offline-x64.exe` | `tauri.offline.conf.json`, `--no-default-features` |
+| `lantern-v<ver>-installer-nsis-x64.exe` | `tauri.installed.conf.json` |
+| `lantern-v<ver>-installer-x64.msi` | `tauri.installed.conf.json` |
+| `SHA256SUMS.txt` | `sha256sum` over the four files above |
+
+The hashes for a release are in its `SHA256SUMS.txt`, not in this page.
+
+To cut a release:
+
+1. Set the new version in `Cargo.toml`, `package.json`, `ui/package.json` and `crates/lantern-app/tauri.conf.json`, then refresh the lockfiles with `cargo update -w` and `npm install`.
+2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a new empty `## [Unreleased]`, and update the compare links at the bottom.
+3. Merge that to `main`, then either push the tag (`git tag -a vX.Y.Z -m "Lantern vX.Y.Z" && git push origin vX.Y.Z`) or run the **Release** workflow by hand on `main`, which creates the tag for you.
+
+The workflow refuses to publish if the tag does not match all four version files, or if `CHANGELOG.md` has no section for the version. That section becomes the release notes.
+
+If a tag was pushed while Actions could not run, run **Release** by hand with the `tag` input set to that tag (e.g. `v0.1.0`) to build and publish it.
+
 ## v1.0.0 artefacts (2026-05-06)
+
+These were local builds labelled v1.0.0. That label was never published as a version; the first published version is v0.1.0 (above).
 
 Local path at the time: `target/lantern-v1.0.0/`.
 
