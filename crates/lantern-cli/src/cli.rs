@@ -21,7 +21,7 @@ use lantern_core::model::ids::NodeId;
 use lantern_core::model::node::{Folder, Node};
 use lantern_core::sanitize::pass::{run_pass, PassTarget, RuleSet};
 use lantern_core::sanitize::treatment::{Change, ChangeKind};
-use lantern_io::rulestore::{builtin_rule_sets, is_builtin};
+use lantern_io::rulestore::{slugify, BUILTIN_RULE_SETS};
 use lantern_io::{build_ruleset, read_bookmark_file, read_ruleset, write_bookmark_file};
 
 // ---------------------------------------------------------------------------
@@ -340,7 +340,7 @@ fn run_rule_sets(_args: RuleSetsArgs) -> Result<()> {
     // so future versions can add `--list-user <DIR>` without breaking the
     // command surface.
     println!("Built-in rule sets:");
-    for (name, treatment_ids) in builtin_rule_sets() {
+    for &(name, treatment_ids) in BUILTIN_RULE_SETS {
         let description = describe_builtin(name);
         println!(
             "  {:<18} {} ({} treatment{})",
@@ -384,11 +384,11 @@ fn resolve_rule_set(name: Option<&str>, file: Option<&Path>) -> Result<RuleSet> 
     }
 
     let requested = name.unwrap_or("Minimal clean");
-    let canonical = canonicalise_builtin_name(requested).ok_or_else(|| {
+    let (canonical, ids) = find_builtin(requested).ok_or_else(|| {
         anyhow!(
             "unknown rule set \"{requested}\"; pass --rule-set-file <PATH> for custom sets, \
              or use one of: {}",
-            builtin_rule_sets()
+            BUILTIN_RULE_SETS
                 .iter()
                 .map(|(n, _)| *n)
                 .collect::<Vec<_>>()
@@ -397,39 +397,21 @@ fn resolve_rule_set(name: Option<&str>, file: Option<&Path>) -> Result<RuleSet> 
     })?;
 
     // Build directly from the in-memory catalogue rather than touching disk.
-    let (_, ids) = builtin_rule_sets()
-        .into_iter()
-        .find(|(n, _)| *n == canonical)
-        .expect("canonicalise_builtin_name only returns names from builtin_rule_sets()");
-
-    build_ruleset(canonical.to_string(), ids)
+    build_ruleset(canonical, ids)
         .with_context(|| format!("building built-in rule set \"{canonical}\""))
 }
 
 /// Match a user-supplied rule-set name against the built-in catalogue.
 ///
-/// Accepts both the display name (`"Minimal clean"`) and the slug
-/// (`"minimal-clean"`), case-insensitively.  Returns the canonical
-/// display name when matched, or `None` if no built-in matches.
-fn canonicalise_builtin_name(input: &str) -> Option<&'static str> {
-    let trimmed = input.trim();
-    if is_builtin(trimmed) {
-        for (name, _) in builtin_rule_sets() {
-            if *name == *trimmed {
-                return Some(name);
-            }
-        }
-    }
-    let normalised = trimmed.to_ascii_lowercase();
-    for (name, _) in builtin_rule_sets() {
-        if name.eq_ignore_ascii_case(trimmed) {
-            return Some(name);
-        }
-        if lantern_io::rulestore::slugify(name) == normalised {
-            return Some(name);
-        }
-    }
-    None
+/// Accepts the display name (`"Minimal clean"`) case-insensitively, or the
+/// slug (`"minimal-clean"`).  Returns the catalogue entry when matched.
+fn find_builtin(input: &str) -> Option<(&'static str, &'static [&'static str])> {
+    let input = input.trim();
+    let lowered = input.to_ascii_lowercase();
+    BUILTIN_RULE_SETS
+        .iter()
+        .copied()
+        .find(|(name, _)| name.eq_ignore_ascii_case(input) || slugify(name) == lowered)
 }
 
 // ---------------------------------------------------------------------------
@@ -447,32 +429,19 @@ mod tests {
     }
 
     #[test]
-    fn canonicalise_accepts_display_name_and_slug() {
-        assert_eq!(
-            canonicalise_builtin_name("Minimal clean"),
-            Some("Minimal clean")
-        );
-        assert_eq!(
-            canonicalise_builtin_name("minimal-clean"),
-            Some("Minimal clean")
-        );
-        assert_eq!(
-            canonicalise_builtin_name("MINIMAL CLEAN"),
-            Some("Minimal clean")
-        );
-        assert_eq!(
-            canonicalise_builtin_name("Aggressive scrub"),
-            Some("Aggressive scrub")
-        );
-        assert_eq!(canonicalise_builtin_name("full-scrub"), Some("Full scrub"));
-        assert_eq!(
-            canonicalise_builtin_name("find-duplicates"),
-            Some("Find duplicates")
-        );
-        assert_eq!(
-            canonicalise_builtin_name("Find duplicates"),
-            Some("Find duplicates")
-        );
-        assert_eq!(canonicalise_builtin_name("nope"), None);
+    fn find_builtin_accepts_display_name_and_slug() {
+        for (input, expected) in [
+            ("Minimal clean", Some("Minimal clean")),
+            ("minimal-clean", Some("Minimal clean")),
+            ("MINIMAL CLEAN", Some("Minimal clean")),
+            (" Minimal-Clean ", Some("Minimal clean")),
+            ("Aggressive scrub", Some("Aggressive scrub")),
+            ("full-scrub", Some("Full scrub")),
+            ("find-duplicates", Some("Find duplicates")),
+            ("Find duplicates", Some("Find duplicates")),
+            ("nope", None),
+        ] {
+            assert_eq!(find_builtin(input).map(|(n, _)| n), expected, "{input:?}");
+        }
     }
 }

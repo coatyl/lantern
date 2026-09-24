@@ -30,21 +30,16 @@ pub enum IoError {
     #[error("TOML serialisation error: {0}")]
     TomlSer(String),
 
-    #[error("JSON serialisation error: {0}")]
-    JsonSer(String),
-
-    /// Raised by `write_bookmark_file` when the destination path is the same
-    /// file the document was read from (PRD F-EXP-7).
+    /// `write_bookmark_file` was pointed at the file the document was read
+    /// from; Lantern never modifies the original.
     #[error("refusing to overwrite the source file {0}; export to a different path")]
     SourceFileOverwrite(PathBuf),
 
-    /// Raised by `read_ruleset` when a treatment ID in the TOML file is not
-    /// recognised.
+    /// A rule-set file names a treatment ID the registry does not know.
     #[error("unknown treatment id \"{0}\"")]
     UnknownTreatment(String),
 
-    /// Raised when a treatment's `configure()` call rejects the provided
-    /// config block.
+    /// A treatment's `configure()` rejected its config block.
     #[error("invalid config for treatment \"{id}\": {reason}")]
     TreatmentConfig { id: String, reason: String },
 }

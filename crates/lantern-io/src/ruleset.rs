@@ -1,4 +1,4 @@
-//! Rule set persistence: TOML serialisation and deserialisation.
+//! Rule-set persistence (`.lantern-rules.toml`) and the treatment registry.
 //!
 //! # File format
 //!
@@ -10,24 +10,13 @@
 //! id = "url.qp.utm"
 //!
 //! [[treatments]]
-//! id = "url.qp.click_ids"
-//!
-//! [[treatments]]
-//! id = "url.qp.session"
-//!
-//! [[treatments]]
-//! id = "title.whitespace"
+//! id = "url.qp.custom"
+//! config = { params = ["ref", "source"] }
 //! ```
 //!
-//! Rule set files conventionally use the `.lantern-rules.toml` extension
-//! (PRD OQ-4 / F-SET-3).
-//!
-//! # Treatment registry
-//!
-//! Every treatment ID present in a file must be known to the registry
-//! ([`treatment_from_id`]).  Unknown IDs produce [`IoError::UnknownTreatment`].
-//! This is intentional: silently skipping an unknown treatment could give the
-//! user a false sense of completeness.
+//! Every treatment ID must be known to [`treatment_from_id`]; unknown IDs are
+//! an error ([`IoError::UnknownTreatment`]) rather than silently skipped, so
+//! a rule set never looks more complete than it is.
 
 use std::path::Path;
 
@@ -48,17 +37,13 @@ use lantern_core::sanitize::treatments::{
 use crate::atomic::write_atomic;
 use crate::error::{IoError, Result};
 
-// ---------------------------------------------------------------------------
-// Serialisable spec types
-// ---------------------------------------------------------------------------
-
-/// The TOML-serialisable representation of a rule set.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RuleSetSpec {
-    pub name: String,
+/// On-disk shape of a rule-set file.
+#[derive(Serialize, Deserialize)]
+struct RuleSetSpec {
+    name: String,
     #[serde(default = "default_version")]
-    pub version: u32,
-    pub treatments: Vec<TreatmentEntry>,
+    version: u32,
+    treatments: Vec<TreatmentEntry>,
 }
 
 fn default_version() -> u32 {
@@ -66,86 +51,51 @@ fn default_version() -> u32 {
 }
 
 /// One entry in the `[[treatments]]` array.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TreatmentEntry {
-    /// Must match one of the IDs returned by a built-in [`Treatment::id`].
-    pub id: String,
-    /// Optional per-treatment configuration table (M5).
-    ///
-    /// Absent entries deserialise as `None`; present entries are passed to
-    /// [`Treatment::configure`] after the treatment is instantiated.
+#[derive(Serialize, Deserialize)]
+struct TreatmentEntry {
+    id: String,
+    /// Passed to [`Treatment::configure`] when present.
     #[serde(default)]
-    pub config: Option<toml::Value>,
+    config: Option<toml::Value>,
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /// Read a rule set from a `.lantern-rules.toml` file.
-///
-/// Returns [`IoError::UnknownTreatment`] if any treatment ID in the file is
-/// not recognised.
 pub fn read_ruleset(path: &Path) -> Result<RuleSet> {
     let text = std::fs::read_to_string(path).map_err(|e| IoError::Read {
         path: path.to_owned(),
         source: e,
     })?;
-
     let spec: RuleSetSpec = toml::from_str(&text).map_err(|e| IoError::TomlDe {
         path: path.to_owned(),
         reason: e.to_string(),
     })?;
-
-    spec_into_ruleset(spec)
-}
-
-/// Build a [`RuleSet`] programmatically from a name and a slice of treatment
-/// ID strings without touching the filesystem.
-///
-/// Used by `lantern-app` to construct the hardcoded default rule sets at
-/// startup without round-tripping through TOML.
-pub fn build_ruleset(name: impl Into<String>, treatment_ids: &[&str]) -> Result<RuleSet> {
-    let name = name.into();
-    let spec = RuleSetSpec {
-        name: name.clone(),
-        version: 1,
-        treatments: treatment_ids
+    resolve(
+        spec.name,
+        spec.treatments
             .iter()
-            .map(|id| TreatmentEntry {
-                id: id.to_string(),
-                config: None,
-            })
-            .collect(),
-    };
-    spec_into_ruleset(spec)
+            .map(|e| (e.id.as_str(), e.config.as_ref())),
+    )
 }
 
-/// Build a [`RuleSet`] from `(id, optional-config)` pairs.
-///
-/// The richer cousin of [`build_ruleset`].  Used when persisting from the
-/// rule-set editor UI, where parameterised treatments (`url.qp.custom`,
-/// `title.regex`, `folder.regex`) carry user-supplied configuration.
+/// Build a [`RuleSet`] from a name and ordered treatment IDs, without
+/// touching the filesystem.
+pub fn build_ruleset(name: impl Into<String>, treatment_ids: &[&str]) -> Result<RuleSet> {
+    resolve(name.into(), treatment_ids.iter().map(|&id| (id, None)))
+}
+
+/// Build a [`RuleSet`] from `(id, optional config)` pairs, for parameterised
+/// treatments (`url.qp.custom`, `title.regex`, `folder.regex`).
 pub fn build_ruleset_with_configs(
     name: impl Into<String>,
     entries: &[(String, Option<toml::Value>)],
 ) -> Result<RuleSet> {
-    let name = name.into();
-    let spec = RuleSetSpec {
-        name: name.clone(),
-        version: 1,
-        treatments: entries
-            .iter()
-            .map(|(id, cfg)| TreatmentEntry {
-                id: id.clone(),
-                config: cfg.clone(),
-            })
-            .collect(),
-    };
-    spec_into_ruleset(spec)
+    resolve(
+        name.into(),
+        entries.iter().map(|(id, cfg)| (id.as_str(), cfg.as_ref())),
+    )
 }
 
-/// Serialise `rs` to `.lantern-rules.toml` format and write it to `path`
+/// Serialise `rs` (including each treatment's current config) to `path`
 /// atomically.
 pub fn write_ruleset(path: &Path, rs: &RuleSet) -> Result<()> {
     let spec = RuleSetSpec {
@@ -160,98 +110,94 @@ pub fn write_ruleset(path: &Path, rs: &RuleSet) -> Result<()> {
             })
             .collect(),
     };
-
     let text = toml::to_string_pretty(&spec).map_err(|e| IoError::TomlSer(e.to_string()))?;
-
     write_atomic(path, text.as_bytes())
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+/// Instantiate and configure each treatment against the registry.
+fn resolve<'a>(
+    name: String,
+    entries: impl Iterator<Item = (&'a str, Option<&'a toml::Value>)>,
+) -> Result<RuleSet> {
+    let treatments = entries
+        .map(|(id, config)| {
+            let mut t =
+                treatment_from_id(id).ok_or_else(|| IoError::UnknownTreatment(id.to_owned()))?;
+            if let Some(config) = config {
+                t.configure(config)
+                    .map_err(|reason| IoError::TreatmentConfig {
+                        id: id.to_owned(),
+                        reason,
+                    })?;
+            }
+            Ok(t)
+        })
+        .collect::<Result<Vec<_>>>()?;
 
-/// Convert a [`RuleSetSpec`] into a [`RuleSet`] by resolving each treatment
-/// ID against the built-in registry.
-fn spec_into_ruleset(spec: RuleSetSpec) -> Result<RuleSet> {
-    let mut treatments: Vec<Box<dyn Treatment>> = Vec::with_capacity(spec.treatments.len());
-
-    for entry in spec.treatments {
-        let mut t = treatment_from_id(&entry.id)
-            .ok_or_else(|| IoError::UnknownTreatment(entry.id.clone()))?;
-        if let Some(config) = &entry.config {
-            t.configure(config)
-                .map_err(|reason| IoError::TreatmentConfig {
-                    id: entry.id.clone(),
-                    reason,
-                })?;
-        }
-        treatments.push(t);
-    }
-
+    // Rule sets are identified by name.
     Ok(RuleSet {
-        // Use the name as the ID for v0.0.1 (no UUID generation yet).
-        id: spec.name.clone(),
-        name: spec.name,
+        id: name.clone(),
+        name,
         treatments,
     })
 }
 
-/// Look up a built-in treatment by its canonical ID string.
+/// Look up a built-in treatment by its canonical ID.
 ///
-/// Returns `None` for any ID not registered here.  To add a new treatment,
-/// implement the [`Treatment`] trait and add a match arm.
+/// To add a treatment, implement [`Treatment`] and add a match arm.
+/// Parameterised treatments start empty and are filled in by `configure`.
 fn treatment_from_id(id: &str) -> Option<Box<dyn Treatment>> {
-    match id {
-        // ── URL query params ────────────────────────────────────────────────
-        "url.qp.utm" => Some(Box::new(UtmTreatment)),
-        "url.qp.click_ids" => Some(Box::new(ClickIdsTreatment)),
-        "url.qp.session" => Some(Box::new(SessionTreatment)),
-        "url.qp.affiliate" => Some(Box::new(AffiliateTreatment)),
-        "url.qp.search_tokens" => Some(Box::new(SearchTokensTreatment)),
-        // Parameterised treatments register with empty defaults; user rule
-        // sets supply the param list via the (planned) per-treatment config
-        // block in `.lantern-rules.toml`.
-        "url.qp.custom" => Some(Box::new(CustomQpTreatment::empty())),
+    let t: Box<dyn Treatment> = match id {
+        // URL query params
+        "url.qp.utm" => Box::new(UtmTreatment),
+        "url.qp.click_ids" => Box::new(ClickIdsTreatment),
+        "url.qp.session" => Box::new(SessionTreatment),
+        "url.qp.affiliate" => Box::new(AffiliateTreatment),
+        "url.qp.search_tokens" => Box::new(SearchTokensTreatment),
+        "url.qp.custom" => Box::new(CustomQpTreatment::empty()),
 
-        // ── URL path / fragment / host ─────────────────────────────────────
-        "url.path.user_segment" => Some(Box::new(UserSegmentTreatment)),
-        "url.strip_fragment" => Some(Box::new(StripFragmentTreatment)),
-        "url.fragment.tracking" => Some(Box::new(FragmentTrackingTreatment)),
-        "url.https_upgrade" => Some(Box::new(HttpsUpgradeTreatment)),
-        "url.host.demobilize" => Some(Box::new(DemobilizeTreatment)),
-        "url.host.unshorten.offline" => Some(Box::new(UnshortenOfflineTreatment)),
+        // URL path / fragment / host
+        "url.path.user_segment" => Box::new(UserSegmentTreatment),
+        "url.strip_fragment" => Box::new(StripFragmentTreatment),
+        "url.fragment.tracking" => Box::new(FragmentTrackingTreatment),
+        "url.https_upgrade" => Box::new(HttpsUpgradeTreatment),
+        "url.host.demobilize" => Box::new(DemobilizeTreatment),
+        "url.host.unshorten.offline" => Box::new(UnshortenOfflineTreatment),
 
-        // ── Title ──────────────────────────────────────────────────────────
-        "title.whitespace" => Some(Box::new(WhitespaceTreatment)),
-        "title.html_entities" => Some(Box::new(HtmlEntitiesTreatment)),
-        "title.email" => Some(Box::new(EmailTreatment)),
-        "title.handle" => Some(Box::new(HandleTreatment)),
-        "title.author_suffix" => Some(Box::new(AuthorSuffixTreatment)),
-        "title.regex" => Some(Box::new(RegexTitleTreatment::empty())),
+        // Title
+        "title.whitespace" => Box::new(WhitespaceTreatment),
+        "title.html_entities" => Box::new(HtmlEntitiesTreatment),
+        "title.email" => Box::new(EmailTreatment),
+        "title.handle" => Box::new(HandleTreatment),
+        "title.author_suffix" => Box::new(AuthorSuffixTreatment),
+        "title.regex" => Box::new(RegexTitleTreatment::empty()),
 
-        // ── Folder name ────────────────────────────────────────────────────
-        "folder.whitespace" => Some(Box::new(FolderWhitespaceTreatment)),
-        "folder.html_entities" => Some(Box::new(FolderHtmlEntitiesTreatment)),
-        "folder.regex" => Some(Box::new(RegexFolderTreatment::empty())),
+        // Folder name
+        "folder.whitespace" => Box::new(FolderWhitespaceTreatment),
+        "folder.html_entities" => Box::new(FolderHtmlEntitiesTreatment),
+        "folder.regex" => Box::new(RegexFolderTreatment::empty()),
 
-        // ── Cross-field / structure ────────────────────────────────────────
-        "cross.dedupe" => Some(Box::new(DeduplicateTreatment)),
-        "cross.empty_folders" => Some(Box::new(EmptyFoldersTreatment)),
-        "structure.duplicates.exact_url" => Some(Box::new(ExactUrlDuplicatesTreatment)),
+        // Cross-field / structure
+        "cross.dedupe" => Box::new(DeduplicateTreatment),
+        "cross.empty_folders" => Box::new(EmptyFoldersTreatment),
+        "structure.duplicates.exact_url" => Box::new(ExactUrlDuplicatesTreatment),
 
-        _ => None,
-    }
+        _ => return None,
+    };
+    Some(t)
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const SAMPLE_TOML: &str = r#"
+    #[test]
+    fn reads_treatments_in_file_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.lantern-rules.toml");
+        std::fs::write(
+            &path,
+            r#"
 name = "Aggressive scrub"
 version = 1
 
@@ -263,49 +209,52 @@ id = "url.qp.click_ids"
 
 [[treatments]]
 id = "title.whitespace"
-"#;
-
-    #[test]
-    fn parse_sample_toml() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("test.lantern-rules.toml");
-        std::fs::write(&path, SAMPLE_TOML).unwrap();
+"#,
+        )
+        .unwrap();
 
         let rs = read_ruleset(&path).unwrap();
         assert_eq!(rs.name, "Aggressive scrub");
-        assert_eq!(rs.treatments.len(), 3);
-        assert_eq!(rs.treatments[0].id(), "url.qp.utm");
-        assert_eq!(rs.treatments[1].id(), "url.qp.click_ids");
-        assert_eq!(rs.treatments[2].id(), "title.whitespace");
+        let ids: Vec<_> = rs.treatments.iter().map(|t| t.id()).collect();
+        assert_eq!(ids, ["url.qp.utm", "url.qp.click_ids", "title.whitespace"]);
     }
 
     #[test]
-    fn round_trip_ruleset() {
+    fn write_then_read_preserves_order_and_config() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("rs.toml");
-
-        let original = RuleSet {
-            id: "test".into(),
-            name: "Test set".into(),
-            treatments: vec![Box::new(UtmTreatment), Box::new(SessionTreatment)],
-        };
+        let config = toml::Value::Table(toml::from_str(r#"params = ["ref", "source"]"#).unwrap());
+        let original = build_ruleset_with_configs(
+            "Test set",
+            &[
+                ("url.qp.utm".into(), None),
+                ("url.qp.custom".into(), Some(config.clone())),
+            ],
+        )
+        .unwrap();
 
         write_ruleset(&path, &original).unwrap();
         let loaded = read_ruleset(&path).unwrap();
 
-        assert_eq!(loaded.name, original.name);
-        assert_eq!(loaded.treatments.len(), 2);
-        assert_eq!(loaded.treatments[0].id(), "url.qp.utm");
-        assert_eq!(loaded.treatments[1].id(), "url.qp.session");
+        assert_eq!(loaded.name, "Test set");
+        let ids: Vec<_> = loaded.treatments.iter().map(|t| t.id()).collect();
+        assert_eq!(ids, ["url.qp.utm", "url.qp.custom"]);
+        assert_eq!(loaded.treatments[1].current_config(), Some(config));
     }
 
     #[test]
-    fn unknown_treatment_returns_error() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("bad.toml");
-        std::fs::write(&path, "name = \"x\"\n[[treatments]]\nid = \"not.real\"\n").unwrap();
+    fn rejects_unknown_ids_and_invalid_config() {
+        let err = build_ruleset("x", &["url.qp.utm", "not.real"]).err();
+        assert!(
+            matches!(&err, Some(IoError::UnknownTreatment(id)) if id == "not.real"),
+            "{err:?}"
+        );
 
-        let result = read_ruleset(&path);
-        assert!(matches!(result, Err(IoError::UnknownTreatment(id)) if id == "not.real"));
+        let bad = toml::Value::Table(toml::map::Map::new());
+        let err = build_ruleset_with_configs("x", &[("url.qp.custom".into(), Some(bad))]).err();
+        assert!(
+            matches!(&err, Some(IoError::TreatmentConfig { id, .. }) if id == "url.qp.custom"),
+            "{err:?}"
+        );
     }
 }
