@@ -54,7 +54,7 @@ export type { TreeView } from "./bindings/TreeView";
 // Rust declares `field` as a String; narrow it to the values the backend
 // emits so the review surface can switch on it exhaustively.
 export type ChangeEntry = Omit<GeneratedChangeEntry, "field"> & {
-  /** `node` is a whole-node deletion (e.g. an exact-URL duplicate). */
+  /** `node` is a whole-node deletion (e.g. a duplicate bookmark). */
   field: "url" | "title" | "folder_name" | "node";
 };
 

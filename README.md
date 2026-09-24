@@ -41,7 +41,7 @@ Settings and rule sets live in `%APPDATA%\Lantern`. To keep them beside a portab
 
 1. **Open** a file with Ctrl+O or from the library home, which lists recent files. Lantern reads Netscape bookmark HTML (the export format of Chrome, Edge, Firefox and Safari) and Chrome / Chromium `Bookmarks` JSON straight from a browser profile.
 2. **Browse** the folder tree, the list of the focused folder, and the details of the selected item. Several files can be open in tabs.
-3. **Run a rule set** from the detail pane on the whole document or just the focused folder. Built-in sets: *Minimal clean*, *Aggressive scrub*, *Full scrub*, and *Find duplicates*, which proposes deleting exact-URL duplicates. The rule-set editor lets you build your own.
+3. **Run a rule set** from the detail pane on the whole document or just the focused folder. Built-in sets: *Minimal clean*, *Aggressive scrub*, *Full scrub*, and *Find duplicates*, which proposes deleting bookmarks that point at the same page, even when their URLs differ in `http`/`https`, `www.`, a `#fragment`, tracking parameters or parameter order. The rule-set editor lets you build your own.
 4. **Review** the proposed changes. They take over the main area: one card per bookmark or folder with its path and a before/after diff, filters by kind of change, and bulk selection. Destructive changes, including deletions, start unselected. Ctrl+Enter applies, Escape discards, and Ctrl+Z undoes an apply.
 5. **Export** a clean copy to a new HTML file. Lantern refuses to overwrite the file it opened.
 

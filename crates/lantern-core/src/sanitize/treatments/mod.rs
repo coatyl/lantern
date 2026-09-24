@@ -15,8 +15,11 @@ pub mod url_qp;
 // Convenience re-exports for the default rule-set builder
 // ---------------------------------------------------------------------------
 
-pub use cross::{DeduplicateTreatment, EmptyFoldersTreatment};
-pub use duplicates::{ExactUrlDuplicatesTreatment, EXACT_URL_DUPLICATES_ID};
+pub use cross::EmptyFoldersTreatment;
+pub use duplicates::{
+    ExactUrlDuplicatesTreatment, NearUrlDuplicatesTreatment, EXACT_URL_DUPLICATES_ID,
+    NEAR_URL_DUPLICATES_ID,
+};
 pub use folder_name::{
     FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment, RegexFolderTreatment,
 };

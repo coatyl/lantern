@@ -6,9 +6,9 @@ use lantern_core::sanitize::pass::RuleSet;
 use lantern_core::sanitize::treatment::{Treatment, TreatmentCategory};
 use lantern_core::sanitize::treatments::{
     AffiliateTreatment, AuthorSuffixTreatment, ClickIdsTreatment, CustomQpTreatment,
-    DeduplicateTreatment, DemobilizeTreatment, EmailTreatment, EmptyFoldersTreatment,
-    ExactUrlDuplicatesTreatment, FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment,
-    FragmentTrackingTreatment, HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment,
+    DemobilizeTreatment, EmailTreatment, EmptyFoldersTreatment, ExactUrlDuplicatesTreatment,
+    FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment, FragmentTrackingTreatment,
+    HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment, NearUrlDuplicatesTreatment,
     RegexFolderTreatment, RegexTitleTreatment, SearchTokensTreatment, SessionTreatment,
     StripFragmentTreatment, UnshortenOfflineTreatment, UserSegmentTreatment, UtmTreatment,
     WhitespaceTreatment,
@@ -122,9 +122,9 @@ pub async fn list_treatments() -> CommandResult<Vec<TreatmentInfo>> {
         Box::new(FolderWhitespaceTreatment),
         Box::new(FolderHtmlEntitiesTreatment),
         Box::new(RegexFolderTreatment::empty()),
-        Box::new(DeduplicateTreatment),
         Box::new(EmptyFoldersTreatment),
         Box::new(ExactUrlDuplicatesTreatment),
+        Box::new(NearUrlDuplicatesTreatment),
     ];
     Ok(catalogue
         .iter()

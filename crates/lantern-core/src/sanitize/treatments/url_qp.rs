@@ -63,6 +63,13 @@ impl Treatment for UtmTreatment {
 /// networks and social media referral links.
 pub struct ClickIdsTreatment;
 
+/// Whether `name` is a tracking parameter (`utm_*` or a known click id):
+/// removing it never changes which page a URL points at.  Used by the
+/// near-duplicate key.
+pub(crate) fn is_tracking_param(name: &str) -> bool {
+    name.starts_with("utm_") || CLICK_ID_PARAMS.contains(&name)
+}
+
 /// Parameters stripped by [`ClickIdsTreatment`].
 const CLICK_ID_PARAMS: &[&str] = &[
     "fbclid", "gclid", "dclid", "msclkid", "yclid", "ttclid", "twclid", "igshid", "mc_eid",

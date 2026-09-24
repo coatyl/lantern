@@ -19,7 +19,7 @@ Left before tagging: CI green on Windows (blocked on GitHub Actions starting job
 
 - **Writers:** JSON (Chrome-compatible), Markdown link lists and CSV, through `lantern-cli convert --to <format>` and a format picker in the save-copy dialog.
 - **Readers:** Firefox `places.sqlite` (read-only, copied before reading so a running Firefox is never touched), Safari `Bookmarks.plist`.
-- **Near-duplicates:** URLs that differ only by tracking parameters, fragment, `www.`, trailing slash or `http`/`https`, proposed as reviewable deletions with the keeper shown.
+- **Near-duplicates** *(landed)*: URLs that differ only by tracking parameters, fragment, `www.`, trailing slash, parameter order or `http`/`https`, proposed as reviewable deletions that name the kept bookmark and what differs.
 - **Library management:** remove a volume from the library, reveal it in the file manager, show each volume's size and last-opened time.
 - **Folder health:** empty folders, single-item folders and very deep nesting, surfaced as proposals in the review surface.
 - **CLI parity:** `lantern-cli dedupe`, rule sets loaded from disk by name, and `--json` output for scripting.
@@ -40,6 +40,6 @@ Each of these spans several releases. Each lands as a `lantern-core` / `lantern-
 
 1. **More platforms** ([Bet 3](PHILOSOPHY.md)). The workspace already builds on Linux, so the first step is to ship Linux and macOS from release CI. Mobile needs `lantern-io`'s settings, recent-files and recovery paths behind a platform trait, a document-picker backend, and a stacked layout. The real costs are webview parity (WKWebView, WebKitGTK) and iOS sandboxing.
 2. **More formats** ([Bet 6](PHILOSOPHY.md)). Done so far: the Chrome / Chromium JSON reader and `lantern-cli convert`. Next readers: Firefox `places.sqlite`, Safari plist, and Pocket, Raindrop and OneTab exports. Next writers: JSON, Markdown, CSV and a lossless native format. Live profile reads stay read-only and are clearly labelled.
-3. **Curation, not just scrubbing** ([Bet 2](PHILOSOPHY.md)). Done so far: exact-URL duplicate review. Next: near-duplicates that differ only in query or fragment, stale-save hints from timestamps, and on-device folder suggestions, all proposed as diffs. Opt-in link intelligence, such as redirect flattening, stays in `lantern-net`.
+3. **Curation, not just scrubbing** ([Bet 2](PHILOSOPHY.md)). Done so far: exact- and near-duplicate review. Next: stale-save hints from timestamps, and on-device folder suggestions, all proposed as diffs. Opt-in link intelligence, such as redirect flattening, stays in `lantern-net`.
 4. **Sandboxed treatment packs** ([Bet 5](PHILOSOPHY.md)). Third-party treatments run as WebAssembly components with no I/O: a node goes in, proposed `Change`s come out. They are distributed as signed, file-based packs that are imported from disk and toggled in the rule-set editor. The open questions are ABI stability and a trust UX that is more than "click OK".
 5. **A versioned local library** ([Bet 1](PHILOSOPHY.md)). Content-addressed snapshots in `lantern-io`, a 3-way merge built on the diff engine, and optional end-to-end-encrypted sync to a folder the user chooses. No Lantern account or server.
