@@ -83,7 +83,7 @@ pub fn run_pass(doc: &Document, rule_set: &RuleSet, target: PassTarget) -> Chang
             collect_changes_in_folder(&doc.root, rule_set, &ctx, &mut changes);
             None
         }
-        PassTarget::Subtree(root_id) => match find_node(&doc.root, root_id) {
+        PassTarget::Subtree(root_id) => match doc.root.find(root_id) {
             Some(node @ Node::Folder(folder)) => {
                 propose_for_node(node, rule_set, &ctx, &mut changes);
                 collect_changes_in_folder(folder, rule_set, &ctx, &mut changes);
@@ -146,21 +146,6 @@ fn collect_changes_for_selection(
             collect_changes_for_selection(f, rule_set, ctx, ids, changes);
         }
     }
-}
-
-/// Depth-first lookup of the node with `id` below `folder`.
-fn find_node(folder: &Folder, id: NodeId) -> Option<&Node> {
-    for child in &folder.children {
-        if child.id() == id {
-            return Some(child);
-        }
-        if let Node::Folder(f) = child {
-            if let Some(found) = find_node(f, id) {
-                return Some(found);
-            }
-        }
-    }
-    None
 }
 
 /// Every node id below `folder` (not including `folder` itself).

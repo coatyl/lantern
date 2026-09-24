@@ -935,10 +935,7 @@ mod tests {
             icon_blob: None,
             description: None,
             attrs: AttrMap::default(),
-            flags: BookmarkFlags {
-                is_shortener: true,
-                ..BookmarkFlags::default()
-            },
+            flags: BookmarkFlags { is_shortener: true },
         });
         assert!(UnshortenOfflineTreatment.propose(&node, &ctx()).is_empty());
     }

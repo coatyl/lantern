@@ -23,8 +23,6 @@
 //! Undoing pops from the undo stack, captures the current values as the redo
 //! entry, and applies the inverse writes.  Redoing is the mirror operation.
 
-use std::time::Instant;
-
 use thiserror::Error;
 
 use crate::error::{CoreError, Result};
@@ -119,7 +117,6 @@ impl Document {
 
         // Push undo entry; trim if over the limit.
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: cs.rule_set_name.clone(),
             inverses,
         };
@@ -191,7 +188,6 @@ impl Document {
             apply_inverse(&mut self.root, inv);
         }
         UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: entry.rule_set_name,
             inverses,
         }
@@ -220,7 +216,6 @@ impl Document {
         write_field(&mut self.root, node_id, field, &new_name);
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "rename".into(),
             inverses: vec![InverseChange {
                 node_id,
@@ -248,7 +243,6 @@ impl Document {
             .ok_or_else(|| CoreError::InvalidOperation(format!("node {node_id} not found")))?;
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "delete".into(),
             inverses: vec![InverseChange {
                 node_id,
@@ -304,7 +298,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "create".into(),
             inverses: vec![InverseChange {
                 node_id: new_id,
@@ -345,7 +338,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "create".into(),
             inverses: vec![InverseChange {
                 node_id: new_id,
@@ -378,7 +370,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "create".into(),
             inverses: vec![InverseChange {
                 node_id: new_id,
@@ -439,7 +430,6 @@ impl Document {
         }
 
         let entry = UndoEntry {
-            timestamp: Instant::now(),
             rule_set_name: "move".into(),
             inverses: vec![InverseChange {
                 node_id,
