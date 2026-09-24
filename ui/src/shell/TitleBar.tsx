@@ -7,9 +7,8 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKE } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { save } from "@tauri-apps/plugin-dialog";
 import { useDocuments } from "../state/documents";
-import { ipc } from "../ipc";
+import { useFileActions } from "../state/fileActions";
 import { useT } from "../i18n/I18nProvider";
 import { ChevronDownIcon, GearIcon, HomeIcon, LinkIcon } from "../components/Icons";
 
@@ -34,7 +33,8 @@ export default function TitleBar({
 }) {
   const t = useT();
   const { activeTab, tabs, showLibrary } = useDocuments();
-  const [exporting, setExporting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { saveCopy } = useFileActions();
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement | null>(null);
   const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -125,21 +125,12 @@ export default function TitleBar({
     }
   };
 
-  const handleExport = async () => {
-    if (!activeTab) return;
-    setExporting(true);
+  const handleSaveCopy = async () => {
+    setSaving(true);
     try {
-      const path = await save({
-        filters: [{ name: "HTML bookmark file", extensions: ["html", "htm"] }],
-        defaultPath: "bookmarks.html",
-      });
-      if (typeof path === "string") {
-        await ipc.export(activeTab, { kind: "whole_document" }, path);
-      }
-    } catch {
-      // user cancelled or export failed: ignore
+      await saveCopy();
     } finally {
-      setExporting(false);
+      setSaving(false);
     }
   };
 
@@ -207,8 +198,6 @@ export default function TitleBar({
         )}
         {activeInfo && (
           <>
-            {/* audit P2 #21: neutral-500 (~3.7:1) → neutral-400 (~5.5:1) so the
-                doc-title clears WCAG AA on the title-bar surface. */}
             <span
               data-tauri-drag-region
               className="text-[11px] text-neutral-400 truncate max-w-[260px]"
@@ -220,18 +209,17 @@ export default function TitleBar({
               {activeInfo.title}
             </span>
 
-            {/* audit P2 #21: Export button text neutral-500 → neutral-300 and
-                full-strength accent ring on focus (was /60). */}
             <button
-              onClick={handleExport}
-              disabled={exporting}
+              onClick={handleSaveCopy}
+              disabled={saving}
+              title={t("titleBar.saveCopyHint")}
               className="px-2 py-0.5 rounded text-[10px] text-neutral-300
                          border border-neutral-700/60
                          hover:border-neutral-500 hover:text-neutral-100
                          disabled:opacity-40 transition-colors focus:outline-none
                          focus-visible:ring-1 focus-visible:ring-accent select-none"
             >
-              {exporting ? "Exporting…" : "Export…"}
+              {t("titleBar.saveCopy")}
             </button>
           </>
         )}

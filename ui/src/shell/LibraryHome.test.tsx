@@ -44,10 +44,10 @@ const RECENTS = [
   "C:/Users/fixture/Downloads/chrome-bookmarks.html",
 ];
 
-function renderHome(onOpen = vi.fn().mockResolvedValue(undefined)) {
+function renderHome(onOpenPaths = vi.fn().mockResolvedValue(undefined)) {
   return render(
     <I18nProvider locale="en">
-      <LibraryHome onOpen={onOpen} />
+      <LibraryHome onOpenPaths={onOpenPaths} onPickFiles={vi.fn().mockResolvedValue(undefined)} />
     </I18nProvider>,
   );
 }
@@ -112,31 +112,9 @@ describe("LibraryHome", () => {
     );
 
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith(
+    expect(onOpen).toHaveBeenCalledWith([
       "C:/Users/fixture/Documents/bookmarks-firefox.html",
-    );
-  });
-
-  it("focuses an already-open tab instead of opening a duplicate", async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn().mockResolvedValue(undefined);
-    store.tabs = [
-      {
-        id: 7,
-        title: "small.html",
-        path: "C:/lantern/test/fixtures/small.html",
-        dirty: false,
-        stats: { bookmark_count: 1, folder_count: 1, separator_count: 0 },
-      },
-    ];
-    vi.mocked(ipc.listRecentFiles).mockResolvedValue(RECENTS);
-    renderHome(onOpen);
-
-    await screen.findByText("small.html");
-    await user.click(screen.getByRole("button", { name: "Open small.html" }));
-
-    expect(store.setActiveTab).toHaveBeenCalledWith(7);
-    expect(onOpen).not.toHaveBeenCalled();
+    ]);
   });
 
   it("keeps the crash-recovery banner on both empty and populated homes", async () => {

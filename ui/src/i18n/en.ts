@@ -86,10 +86,23 @@ export const en: Translations = {
   "commandPalette.hint":         "↑↓ to move · Enter to run · Esc to close",
   "commandPalette.shortcut":     "Ctrl+K / ⌘K",
   "commandPalette.openFile":     "Open file",
-  "commandPalette.export":       "Export…",
+  "commandPalette.saveCopy":     "Save copy",
+  "commandPalette.saveCopyAs":   "Save copy as…",
   "commandPalette.runPass":      "Run pass",
   "commandPalette.search":       "Focus search",
   "commandPalette.toggleTheme":  "Toggle theme",
+
+  // ── Files (open / save a copy / undo) ────────────────────────────────────
+  "file.dropToOpen":           "Drop bookmark files to open them",
+  "file.unsupported":          "{name} isn’t a bookmark file Lantern can open (HTML export or Chrome Bookmarks JSON).",
+  "file.openFailed":           "Couldn’t open {name}: {reason}",
+  "file.saved":                "Saved a copy to {name}.",
+  "file.saveFailed":           "Couldn’t save the copy: {reason}",
+  "file.refuseOriginal":       "Lantern never overwrites the file you opened. Choose another name for the copy.",
+  "file.nothingToUndo":        "Nothing to undo.",
+  "file.nothingToRedo":        "Nothing to redo.",
+  "titleBar.saveCopy":         "Save copy…",
+  "titleBar.saveCopyHint":     "Save a clean copy (Ctrl+S). The original file is never changed.",
 
   // ── Tree pane ────────────────────────────────────────────────────────────
   "tree.label":                "Folders",
@@ -188,5 +201,5 @@ export const en: Translations = {
   "library.recovery.partial":          "Restored {restored} files; {failed} could not be reopened.",
   "library.recovery.more":             "+{n} more",
   "library.paletteHint":               "Press Ctrl+K (⌘K) to open the command palette.",
-  "library.hint":                      "Ctrl+O to open · Ctrl+S to save · Ctrl+, settings · Chrome, Firefox, Edge, Safari exports supported",
+  "library.hint":                      "Drop a bookmark file anywhere to open it · Ctrl+S saves a clean copy, never the original · Chrome, Firefox, Edge and Safari exports and Chrome Bookmarks JSON",
 };

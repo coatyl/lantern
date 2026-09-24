@@ -11,7 +11,6 @@
  */
 
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
 
 import { useDocuments } from "../state/documents";
 import { ipc } from "../ipc";
@@ -20,9 +19,11 @@ import { FolderIcon } from "../components/Icons";
 import { parseVolumePath, type VolumePresence } from "./volumePath";
 
 export default function LibraryHome({
-  onOpen,
+  onOpenPaths,
+  onPickFiles,
 }: {
-  onOpen: (path: string) => Promise<void>;
+  onOpenPaths: (paths: string[]) => Promise<void>;
+  onPickFiles: () => Promise<void>;
 }) {
   const t = useT();
   const { refreshTabs, setActiveTab } = useDocuments();
@@ -49,28 +50,8 @@ export default function LibraryHome({
     loadLibraryData();
   }, []);
 
-  const handleOpen = async () => {
-    const selected = await open({
-      filters: [
-        { name: "Bookmark files", extensions: ["html", "htm", "json"] },
-        { name: "All files", extensions: ["*"] },
-      ],
-      multiple: false,
-    });
-    if (typeof selected === "string") {
-      await onOpen(selected);
-    }
-  };
-
-  const handleOpenVolume = async (path: string) => {
-    const { tabs } = useDocuments.getState();
-    const existing = tabs.find((tab) => tab.path === path);
-    if (existing) {
-      await setActiveTab(existing.id);
-      return;
-    }
-    await onOpen(path);
-  };
+  const handleOpen = onPickFiles;
+  const handleOpenVolume = (path: string) => onOpenPaths([path]);
 
   const handleRestoreSession = async () => {
     setRestoringSession(true);

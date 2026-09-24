@@ -16,9 +16,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { open, save } from "@tauri-apps/plugin-dialog";
 
 import { useDocuments } from "./state/documents";
+import { useFileActions } from "./state/fileActions";
 import { ipc } from "./ipc";
 import { applyTheme, resolveTheme, useTheme } from "./hooks/useTheme";
 import { useT } from "./i18n/I18nProvider";
@@ -58,12 +58,9 @@ export default function App() {
   const {
     tabs,
     activeTab,
-    openFile,
     showLibrary,
     refreshTabs,
     setActiveTab,
-    refreshTree,
-    refreshList,
     isSearchMode,
     clearSearch,
     goBack,
@@ -78,6 +75,8 @@ export default function App() {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [themeNonce, setThemeNonce] = useState(0);
+  const [dropping, setDropping] = useState(false);
+  const { openPaths, pickAndOpen, saveCopy, undo, redo } = useFileActions();
   const [density, setDensity] = useState<"compact" | "comfortable">("compact");
 
   // Theme: read on mount, re-read whenever the settings modal closes or
@@ -131,33 +130,33 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openBookmarkFile = async () => {
-    const selected = await open({
-      filters: [
-        { name: "Bookmark files", extensions: ["html", "htm", "json"] },
-        { name: "All files", extensions: ["*"] },
-      ],
-      multiple: false,
-    });
-    if (typeof selected === "string") {
-      await openFile(selected);
-    }
-  };
-
-  const exportActiveDocument = async () => {
-    if (activeTab === null) return;
-    try {
-      const path = await save({
-        filters: [{ name: "HTML bookmark file", extensions: ["html", "htm"] }],
-        defaultPath: "bookmarks.html",
+  // Files dropped anywhere on the window open as volumes.  Tauri delivers
+  // real paths through the webview drag-drop event (plain HTML5 drops only
+  // expose File objects); outside Tauri the import rejects and this is a no-op.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    import("@tauri-apps/api/webview")
+      .then(({ getCurrentWebview }) =>
+        getCurrentWebview().onDragDropEvent((event) => {
+          const { type } = event.payload;
+          if (type === "enter" || type === "over") setDropping(true);
+          else setDropping(false);
+          if (type === "drop") void openPaths(event.payload.paths);
+        }),
+      )
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        // Not running inside Tauri.
       });
-      if (typeof path === "string") {
-        await ipc.export(activeTab, { kind: "whole_document" }, path);
-      }
-    } catch {
-      // user cancelled or export failed
-    }
-  };
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [openPaths]);
 
   const toggleTheme = async () => {
     try {
@@ -178,13 +177,16 @@ export default function App() {
     window.setTimeout(() => {
       switch (id) {
         case "open_file":
-          void openBookmarkFile();
+          void pickAndOpen();
           break;
         case "settings":
           setSettingsOpen(true);
           break;
-        case "export":
-          void exportActiveDocument();
+        case "save_copy":
+          void saveCopy();
+          break;
+        case "save_copy_as":
+          void saveCopy({ saveAs: true });
           break;
         case "run_pass":
           requestRunPass();
@@ -212,7 +214,8 @@ export default function App() {
     () => [
       { id: "open_file", label: t("commandPalette.openFile"), shortcut: "Ctrl+O", enabled: true },
       { id: "settings", label: t("titleBar.settings"), shortcut: "Ctrl+,", enabled: true },
-      { id: "export", label: t("commandPalette.export"), shortcut: "Ctrl+E", enabled: activeTab !== null },
+      { id: "save_copy", label: t("commandPalette.saveCopy"), shortcut: "Ctrl+S", enabled: activeTab !== null },
+      { id: "save_copy_as", label: t("commandPalette.saveCopyAs"), shortcut: "Ctrl+Shift+S", enabled: activeTab !== null },
       { id: "run_pass", label: t("commandPalette.runPass"), shortcut: "Ctrl+R", enabled: activeTab !== null },
       { id: "search_focus", label: t("commandPalette.search"), shortcut: "Ctrl+F", enabled: activeTab !== null },
       {
@@ -273,57 +276,34 @@ export default function App() {
         return;
       }
 
-      // Ctrl+O → open file
-      if (e.ctrlKey && !e.shiftKey && e.key === "o") {
+      // Ctrl+O → open file(s)
+      if (e.ctrlKey && !e.shiftKey && (e.key === "o" || e.key === "O")) {
         e.preventDefault();
-        await openBookmarkFile();
+        await pickAndOpen();
         return;
       }
 
-      // Ctrl+S → save in place (export to the original file path)
-      if (e.ctrlKey && !e.shiftKey && e.key === "s") {
+      // Ctrl+S → save a copy (asks where the first time); Ctrl+Shift+S → always ask
+      if (e.ctrlKey && (e.key === "s" || e.key === "S")) {
         if (activeTab === null) return;
         e.preventDefault();
-        const info = tabs.find((t) => t.id === activeTab);
-        if (!info?.path) return; // no known path, ignore (user should use Export…)
-        try {
-          await ipc.export(activeTab, { kind: "whole_document" }, info.path);
-          await refreshTree(); // dirty flag cleared
-        } catch {
-          // write error, ignore silently for now (toasts in v0.0.2)
-        }
+        await saveCopy({ saveAs: e.shiftKey });
         return;
       }
 
-      // Ctrl+Z → undo
-      if (e.ctrlKey && !e.shiftKey && e.key === "z") {
-        if (activeTab === null) return;
+      // Ctrl+Z → undo; Ctrl+Y or Ctrl+Shift+Z → redo.  Text fields keep
+      // their own undo.
+      if (e.ctrlKey && (e.key === "z" || e.key === "Z" || e.key === "y" || e.key === "Y")) {
+        if (activeTab === null || isEditableTarget(e.target)) return;
         e.preventDefault();
-        try {
-          await ipc.undo(activeTab);
-          await Promise.all([refreshTree(), refreshList()]);
-        } catch {
-          // undo unavailable, ignore
-        }
-        return;
-      }
-
-      // Ctrl+Y  or  Ctrl+Shift+Z → redo
-      if (e.ctrlKey && (e.key === "y" || (e.shiftKey && e.key === "z"))) {
-        if (activeTab === null) return;
-        e.preventDefault();
-        try {
-          await ipc.redo(activeTab);
-          await Promise.all([refreshTree(), refreshList()]);
-        } catch {
-          // redo unavailable, ignore
-        }
+        const isRedo = e.key === "y" || e.key === "Y" || e.shiftKey;
+        await (isRedo ? redo() : undo());
         return;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [openFile, showLibrary, activeTab, tabs, refreshTree, refreshList]);
+  }, [showLibrary, activeTab, pickAndOpen, saveCopy, undo, redo]);
 
   useEffect(() => {
     const preventBrowserButtons = (e: MouseEvent) => {
@@ -406,7 +386,7 @@ export default function App() {
           )}
         </main>
       ) : (
-        <LibraryHome onOpen={openFile} />
+        <LibraryHome onOpenPaths={openPaths} onPickFiles={pickAndOpen} />
       )}
 
       {/* Status bar */}
@@ -455,6 +435,19 @@ export default function App() {
           await setActiveTab(newTabId);
         }}
       />
+
+      {/* Drop target feedback while files are dragged over the window */}
+      {dropping && (
+        <div
+          aria-hidden
+          className="fixed inset-2 z-[60] pointer-events-none rounded-xl border-2 border-dashed
+                     border-accent/70 bg-accent/10 flex items-center justify-center animate-fade-in"
+        >
+          <p className="px-4 py-2 rounded-lg bg-surface-1/90 text-sm font-medium text-neutral-100 shadow-lg">
+            {t("file.dropToOpen")}
+          </p>
+        </div>
+      )}
 
       {/* Global toast / notification surface (v0.0.11 QoL slice 1).  Mounted
           last so its z-index 70 stack reliably overlays any modal that opens

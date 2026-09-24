@@ -10,7 +10,7 @@ import { I18nProvider } from "../i18n/I18nProvider";
 const COMMANDS: PaletteCommand[] = [
   { id: "open_file", label: "Open file", enabled: true },
   { id: "settings", label: "Settings", enabled: true },
-  { id: "export", label: "Export…", enabled: false },
+  { id: "save_copy", label: "Save copy", enabled: false },
   { id: "toggle_theme", label: "Toggle theme", enabled: true },
 ];
 
@@ -111,8 +111,8 @@ describe("CommandPalette keyboard selection", () => {
     const user = userEvent.setup();
     const { onRun } = renderPalette();
 
-    await user.type(screen.getByRole("combobox"), "export");
-    expect(screen.getByRole("option", { name: "Export…" })).toHaveAttribute(
+    await user.type(screen.getByRole("combobox"), "save");
+    expect(screen.getByRole("option", { name: "Save copy" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );

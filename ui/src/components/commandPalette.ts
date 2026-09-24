@@ -9,7 +9,8 @@
 export type CommandId =
   | "open_file"
   | "settings"
-  | "export"
+  | "save_copy"
+  | "save_copy_as"
   | "run_pass"
   | "search_focus"
   | "compare_tabs"
