@@ -9,41 +9,90 @@ Lantern uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Work toward **0.2.0**.  Breaking changes are still allowed until v1.0,
-which will be **the stability promise**; from then on breaking changes
-require a major-version bump.
+Work toward **0.2.0**, the "warm archive" release: a rebuilt design
+system, a real review surface, a decluttered workspace, and new ways to
+get bookmarks in (Chrome JSON, drag-and-drop) and clean them (duplicates,
+folder-scoped passes).  Breaking changes are still allowed until v1.0,
+which will be **the stability promise**.
 
 ### Added
 
-- **core / io:** Chrome / Chromium `Bookmarks` JSON reader
-  (`lantern_core::parser::parse_chrome_json`) with auto-detect in
-  `lantern-io::read_bookmark_file`. Firefox HTML already worked (same
-  Netscape format). Read-only: the profile file is never written.
-- **cli:** `lantern convert <input> -o <output>` emits Netscape HTML
-  from any supported input so the GUI can open the result later.
-  `info` and `sanitize` accept JSON too.
-- **ui:** command palette (`Ctrl+K` / `⌘K`) for Open file, Settings,
-  Export, Run pass, Focus search, Compare tabs, Check dead links,
-  Merge documents, and Toggle theme. Settings → Keyboard lists it.
-- **core / cli:** exact-URL duplicate review pass
-  (`structure.duplicates.exact_url`) and a dedicated built-in rule set
-  **Find duplicates**. Groups bookmarks that share a URL after a light
-  canonicalisation (lowercase host, strip trailing slash), keeps the
-  oldest `ADD_DATE` (or first-seen), and proposes `DeleteNode` changes
-  that are destructive and unapproved. Query-parameter and fragment
-  differences are not collapsed in this slice. CLI `--dry-run` lists
-  each proposed deletion; a real `lantern sanitize` run still
-  auto-approves (documented in `--help` and `README.md`). The GUI
-  does not auto-apply.
+- **Review surface.** Running a pass opens a full-width review in place
+  of the list and detail panes: one card per touched bookmark or folder
+  with its title and folder path, wrapped before/after diffs, filter
+  chips by kind (URL / Title / Folder name / Delete) with counts, a text
+  filter, and bulk select that acts on what is shown.  Apply names the
+  deletions it includes and turns red when any are selected;
+  `Ctrl+Enter` applies, `Esc` discards, and a successful apply offers
+  **Undo** in its toast.
+- **Folder-scoped passes.** The sanitize panel can run on the whole
+  document or on the folder shown in the list (`run_pass` takes an
+  optional scope; `PassTarget::Subtree` in lantern-core).
+- **Drag-and-drop.** Drop bookmark files anywhere on the window to open
+  them; the open dialog accepts several files at once; re-opening an
+  open file focuses its tab.
+- **Chrome / Chromium `Bookmarks` JSON** reader
+  (`lantern_core::parser::parse_chrome_json`), auto-detected by
+  `lantern-io::read_bookmark_file`.  Read-only: the profile file is
+  never written.
+- **CLI:** `convert <input> -o <output>` writes Netscape HTML from any
+  supported input; `info` and `sanitize` accept JSON too.
+- **Find duplicates** rule set with the exact-URL duplicate pass
+  (`structure.duplicates.exact_url`): bookmarks sharing a URL after light
+  canonicalisation (lowercase host, no trailing slash) keep the oldest
+  copy; the others are proposed as destructive, unselected deletions.
+  Query-string and fragment differences are not collapsed.  A real CLI
+  `sanitize` run still auto-approves; use `--dry-run` first.
+- **Command palette** (`Ctrl+K` / `⌘K`): open, save a copy, run pass,
+  focus search, compare tabs, check dead links, merge, settings, theme.
+- **Search as you type**, with the match mode (Text / Glob / Regex) and
+  Titles / URLs options in a results bar; an invalid pattern is shown
+  inline instead of failing silently.
+- **Toasts for file actions**: saved, save failed, open failed,
+  unsupported file, nothing to undo / redo.
 
 ### Changed
 
-- **ui:** first cut of the warm-archive identity. Dark surfaces shift
-  from cool `#0a0a0a` greys to ink / brown-black; light theme is paper,
-  not an inverted IDE. The amber accent keeps a glow companion. Empty
-  states are instructional rather than "no data". Title bar and status
-  bar pick up the wordmark and offline-badge treatment. No new network,
-  telemetry, or font payload (Inter Variable already shipped).
+- **Saving never touches the original.**  `Ctrl+S` saves a *copy*: the
+  first time it asks where (suggesting `<name>.clean.html`), then reuses
+  that path; `Ctrl+Shift+S` always asks; choosing the original file is
+  refused.  Previously `Ctrl+S` wrote over the opened file, which for a
+  Chrome `Bookmarks` file would have replaced the JSON with HTML.  The
+  title-bar "Export…" button is now "Save copy…".
+- **Design system.** Tailwind's neutral scale is theme-aware (CSS
+  variables with contrast floors per step), so the whole UI themes
+  correctly; light mode was largely unreadable before (primary text
+  rendered cream on cream).  New tokens: `on-accent`, `on-danger`,
+  `scrim`, `info` / `warn` / `ok`, and a `--line` divider that replaces
+  Tailwind's default white hairlines.  Warm-archive palette: ink
+  surfaces in dark mode, paper in light mode, honey-amber accent.
+- **Workspace toolbar.** The list header is one row (breadcrumb, search,
+  Filter, New ▾) instead of four (breadcrumb, search with `abc / T / U`
+  toggles, a `+ Bookmark / + Folder / + Separator` row, columns).
+- **Folder tree** is a WAI-ARIA tree: one tab stop, arrow keys,
+  Home/End, Enter/Space, F2 to rename.
+- **Library home** carries the command-palette hint and accepts
+  Chrome JSON in its open dialog.
+- Strings are pluralised ("1 change", "1 bookmark").
+- Version files are at `0.2.0`.
+
+### Fixed
+
+- A folder or selection pass could propose deleting bookmarks outside
+  its target: document-level treatments (duplicates) now only keep
+  changes to in-scope nodes.
+- The proposed-changes preview was translucent over the detail pane and
+  cut URLs to one line; deletions showed as "(deleted)" with no title or
+  URL.  Changes now carry `node_title`, `node_url` and `location`.
+- The integration branch that carried the features above had been
+  merged with both sides of every conflict kept and did not compile;
+  repaired (CLI integration tests, `App.tsx`).
+
+### Removed
+
+- The inline `PreviewPanel` / `ChangeRow` components (superseded by the
+  review surface) and the dead welcome screen (superseded by the
+  library home in 0.1.0).
 
 ---
 
