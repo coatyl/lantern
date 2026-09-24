@@ -23,5 +23,20 @@ fn main() {
         println!("cargo:rustc-env=LANTERN_SIGNED={signed}");
     }
 
-    tauri_build::build()
+    // tauri-build embeds its application manifest into the app binary only,
+    // so `cargo test` executables that link the Tauri runtime start without
+    // one and Windows refuses to load them (STATUS_ENTRYPOINT_NOT_FOUND on
+    // comctl32).  Embed our own manifest through the linker instead, which
+    // applies to every target.
+    let mut windows = tauri_build::WindowsAttributes::new();
+    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        windows = tauri_build::WindowsAttributes::new_without_app_manifest();
+        let manifest = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("windows-app-manifest.xml");
+        println!("cargo:rerun-if-changed={}", manifest.display());
+        println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
+    }
+    tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))
+        .expect("tauri-build failed");
 }
