@@ -1,9 +1,5 @@
-//! Application settings: the [`Settings`] struct and its TOML persistence.
-//!
-//! Settings are stored at `%APPDATA%\Lantern\settings.toml` for installed
-//! builds, or alongside the executable for portable builds (PRD F-SET-1).
-//! The choice of path is the caller's responsibility; this module only reads
-//! and writes whatever path it is given.
+//! Application settings: the [`Settings`] struct, its TOML persistence, and
+//! the settings-directory resolution rules.
 
 use std::path::{Path, PathBuf};
 
@@ -12,14 +8,10 @@ use serde::{Deserialize, Serialize};
 use crate::atomic::write_atomic;
 use crate::error::{IoError, Result};
 
-// ---------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------
-
-/// User-facing application preferences (PRD F-SET-2).
+/// User-facing application preferences.
 ///
-/// All fields have sane defaults so a missing or empty `settings.toml` is
-/// handled gracefully.
+/// Every field has a default, so a missing, empty, or partial
+/// `settings.toml` loads cleanly.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
@@ -27,8 +19,8 @@ pub struct Settings {
     pub theme: Theme,
     /// Default directory for the "Export" file picker (`None` = last used).
     pub default_export_location: Option<PathBuf>,
-    /// Whether the user has opted into the dead-link checker for this
-    /// installation.  Defaults to `false` (PRD NFR-PR-1).
+    /// Whether the user has opted into the dead-link checker.  Off by default:
+    /// it is the only feature that touches the network.
     pub dead_link_checker_opt_in: bool,
     /// Maximum number of entries in the Recent Files list.
     pub recent_files_max: usize,
@@ -44,11 +36,10 @@ pub struct Settings {
     pub list_density: ListDensity,
 }
 
-/// Vertical density for the list pane rows (PRD F-UX-12).
+/// Vertical density for the list pane rows.
 ///
-/// `Compact` is the historical default: ~28 px tall rows that fit the most
-/// bookmarks per screen.  `Comfortable` adds breathing room (~36 px) for users
-/// who prefer larger touch targets or simply find tight rows fatiguing.
+/// `Compact` (~28 px rows) fits the most bookmarks per screen;
+/// `Comfortable` (~36 px) trades density for larger targets.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ListDensity {
@@ -84,25 +75,18 @@ pub enum Theme {
     Dark,
 }
 
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
-
 /// Read settings from `path`.
 ///
-/// Returns `Ok(Settings::default())` for an empty file; returns an error only
-/// for I/O failures or TOML syntax errors.
+/// An empty file yields `Settings::default()`; only I/O failures and TOML
+/// syntax errors are reported.
 pub fn read_settings(path: &Path) -> Result<Settings> {
     let text = std::fs::read_to_string(path).map_err(|e| IoError::Read {
         path: path.to_owned(),
         source: e,
     })?;
-
-    // An empty file is fine; just use defaults.
     if text.trim().is_empty() {
         return Ok(Settings::default());
     }
-
     toml::from_str(&text).map_err(|e| IoError::TomlDe {
         path: path.to_owned(),
         reason: e.to_string(),
@@ -115,32 +99,58 @@ pub fn write_settings(path: &Path, settings: &Settings) -> Result<()> {
     write_atomic(path, text.as_bytes())
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+/// Directory holding `settings.toml`, the rule store, and the log.
+///
+/// Resolution order:
+///
+/// 1. `LANTERN_SETTINGS_DIR`, if set and non-empty (tests, portable zip).
+/// 2. The executable's directory, when a `settings.toml` sits next to it
+///    (portable install).
+/// 3. The platform config directory: `%APPDATA%\Lantern` on Windows,
+///    `$XDG_CONFIG_HOME/lantern` (or `~/.config/lantern`) on Linux,
+///    `~/Library/Application Support/Lantern` on macOS.  Falls back to `.`.
+pub fn settings_dir() -> PathBuf {
+    if let Some(dir) = non_empty_env("LANTERN_SETTINGS_DIR") {
+        return dir;
+    }
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+    {
+        if exe_dir.join("settings.toml").exists() {
+            return exe_dir;
+        }
+    }
+    platform_config_dir().unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn platform_config_dir() -> Option<PathBuf> {
+    if cfg!(target_os = "windows") {
+        non_empty_env("APPDATA").map(|d| d.join("Lantern"))
+    } else if cfg!(target_os = "macos") {
+        non_empty_env("HOME").map(|h| h.join("Library/Application Support/Lantern"))
+    } else if cfg!(target_os = "linux") {
+        non_empty_env("XDG_CONFIG_HOME")
+            .map(|d| d.join("lantern"))
+            .or_else(|| non_empty_env("HOME").map(|h| h.join(".config/lantern")))
+    } else {
+        None
+    }
+}
+
+fn non_empty_env(key: &str) -> Option<PathBuf> {
+    std::env::var_os(key)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn default_settings_round_trip() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("settings.toml");
-
-        let original = Settings::default();
-        write_settings(&path, &original).unwrap();
-        let loaded = read_settings(&path).unwrap();
-
-        assert_eq!(original, loaded);
-    }
-
-    #[test]
-    fn custom_settings_round_trip() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("settings.toml");
-
-        let original = Settings {
+    fn settings_round_trip() {
+        let custom = Settings {
             theme: Theme::Dark,
             default_export_location: Some(PathBuf::from(r"C:\Users\test\exports")),
             dead_link_checker_opt_in: true,
@@ -154,36 +164,30 @@ mod tests {
             session_was_running: true,
             list_density: ListDensity::Comfortable,
         };
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.toml");
 
-        write_settings(&path, &original).unwrap();
-        let loaded = read_settings(&path).unwrap();
-
-        assert_eq!(original, loaded);
+        for original in [Settings::default(), custom] {
+            write_settings(&path, &original).unwrap();
+            assert_eq!(read_settings(&path).unwrap(), original);
+        }
     }
 
     #[test]
-    fn empty_file_returns_defaults() {
+    fn empty_and_partial_files_fall_back_to_defaults() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.toml");
-        std::fs::write(&path, b"").unwrap();
 
-        let settings = read_settings(&path).unwrap();
-        assert_eq!(settings, Settings::default());
-    }
+        std::fs::write(&path, "").unwrap();
+        assert_eq!(read_settings(&path).unwrap(), Settings::default());
 
-    #[test]
-    fn partial_toml_uses_defaults_for_missing_fields() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("settings.toml");
-        std::fs::write(&path, b"theme = \"light\"\n").unwrap();
-
-        let settings = read_settings(&path).unwrap();
-        assert_eq!(settings.theme, Theme::Light);
-        assert!(!settings.dead_link_checker_opt_in); // default
-        assert_eq!(settings.recent_files_max, 10); // default
-        assert!(settings.recent_files.is_empty());
-        assert!(settings.crash_recovery_enabled);
-        assert!(settings.recoverable_documents.is_empty());
-        assert!(!settings.session_was_running);
+        std::fs::write(&path, "theme = \"light\"\n").unwrap();
+        assert_eq!(
+            read_settings(&path).unwrap(),
+            Settings {
+                theme: Theme::Light,
+                ..Settings::default()
+            }
+        );
     }
 }
