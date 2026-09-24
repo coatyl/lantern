@@ -109,6 +109,7 @@ export const en: Translations = {
   "closeGuard.body":           "These {n} documents have edits that only exist in Lantern. The original files are untouched.",
   "closeGuard.body.one":       "This document has edits that only exist in Lantern. The original file is untouched.",
   "closeGuard.discard":        "Discard edits",
+  "closeGuard.keepOpen":       "Keep them open",
   "closeGuard.save":           "Save copies and close",
   "closeGuard.save.one":       "Save copy and close",
 
