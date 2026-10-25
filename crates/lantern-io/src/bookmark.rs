@@ -1,8 +1,9 @@
-//! Read bookmark files and write Netscape bookmark HTML.
+//! Read and write bookmark files.
 //!
 //! Reads accept Netscape / Firefox HTML or Chrome / Chromium `Bookmarks`
-//! JSON (sniffed from the bytes).  Writes always emit Netscape HTML: Lantern
-//! never writes back to a browser profile.
+//! JSON (sniffed from the bytes).  Writes emit Netscape HTML, Chrome JSON,
+//! Markdown or CSV, chosen from the destination's extension or given
+//! explicitly.  Lantern never writes back to a browser profile.
 //!
 //! # Source-file protection
 //!
@@ -13,7 +14,7 @@
 
 use std::path::Path;
 
-use lantern_core::emit::{emit, EmitOptions};
+use lantern_core::emit::{export, EmitOptions, ExportFormat};
 use lantern_core::model::document::Document;
 
 use crate::atomic::write_atomic;
@@ -38,17 +39,41 @@ pub fn read_bookmark_file(path: &Path) -> Result<Document> {
     Ok(doc)
 }
 
-/// Serialise `doc` to Netscape HTML and write it to `path` atomically.
+/// Write `doc` to `path` atomically, in the format its extension names
+/// (see [`format_for_path`]).
 ///
 /// Returns [`IoError::SourceFileOverwrite`] if `path` resolves to the file
 /// `doc` was read from.
 pub fn write_bookmark_file(path: &Path, doc: &Document, opts: &EmitOptions) -> Result<()> {
+    write_bookmark_file_as(path, doc, format_for_path(path), opts)
+}
+
+/// Write `doc` to `path` atomically in `format`, whatever the extension.
+///
+/// Returns [`IoError::SourceFileOverwrite`] if `path` resolves to the file
+/// `doc` was read from.
+pub fn write_bookmark_file_as(
+    path: &Path,
+    doc: &Document,
+    format: ExportFormat,
+    opts: &EmitOptions,
+) -> Result<()> {
     if let Some(source) = &doc.path {
         if same_file(source, path) {
             return Err(IoError::SourceFileOverwrite(path.to_owned()));
         }
     }
-    write_atomic(path, &emit(doc, opts))
+    write_atomic(path, &export(doc, format, opts))
+}
+
+/// The format a destination's extension names: `.json`, `.md` /
+/// `.markdown` or `.csv`; anything else (including no extension) is
+/// Netscape HTML.
+pub fn format_for_path(path: &Path) -> ExportFormat {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .and_then(ExportFormat::from_extension)
+        .unwrap_or_default()
 }
 
 /// True if `a` and `b` refer to the same filesystem object.
@@ -154,5 +179,39 @@ mod tests {
             "expected SourceFileOverwrite, got {result:?}"
         );
         assert_eq!(std::fs::read(&path).unwrap(), MINIMAL);
+    }
+
+    #[test]
+    fn extension_picks_the_format() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("in.html"), MINIMAL).unwrap();
+        let doc = read_bookmark_file(&dir.path().join("in.html")).unwrap();
+
+        for (name, starts) in [
+            ("out.JSON", "{"),
+            ("out.md", "# Bookmarks"),
+            ("out.csv", "\u{feff}title,url"),
+            ("out.txt", "<!DOCTYPE NETSCAPE"),
+        ] {
+            let path = dir.path().join(name);
+            write_bookmark_file(&path, &doc, &EmitOptions::default()).unwrap();
+            let text = std::fs::read_to_string(&path).unwrap();
+            assert!(text.starts_with(starts), "{name}: {text}");
+        }
+        // A written JSON file reads back.
+        let again = read_bookmark_file(&dir.path().join("out.JSON")).unwrap();
+        assert_eq!(again.stats.bookmark_count, doc.stats.bookmark_count);
+    }
+
+    #[test]
+    fn explicit_format_ignores_the_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("in.html"), MINIMAL).unwrap();
+        let doc = read_bookmark_file(&dir.path().join("in.html")).unwrap();
+        let path = dir.path().join("out.html");
+        write_bookmark_file_as(&path, &doc, ExportFormat::Csv, &EmitOptions::default()).unwrap();
+        assert!(std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("title,url,folder"));
     }
 }

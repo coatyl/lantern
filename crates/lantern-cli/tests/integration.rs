@@ -167,6 +167,43 @@ fn convert_chrome_json_emits_netscape_html() {
 }
 
 #[test]
+fn convert_infers_format_from_extension_and_honours_to() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let json = tmp.path().join("Bookmarks.json");
+    lantern_cli()
+        .arg("convert")
+        .arg(fixture_path())
+        .arg("-o")
+        .arg(&json)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(json)"));
+    let doc = lantern_core::parser::parse_chrome_json(&std::fs::read(&json).unwrap())
+        .expect("written JSON must read back as Chrome Bookmarks");
+    assert!(doc.stats.bookmark_count > 0);
+
+    let md = tmp.path().join("links.txt");
+    lantern_cli()
+        .args(["convert", "--to", "markdown"])
+        .arg(fixture_path())
+        .arg("-o")
+        .arg(&md)
+        .assert()
+        .success();
+    assert!(std::fs::read_to_string(&md).unwrap().starts_with("# "));
+
+    lantern_cli()
+        .args(["convert", "--to", "yaml"])
+        .arg(fixture_path())
+        .arg("-o")
+        .arg(tmp.path().join("x.yaml"))
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown format `yaml`"));
+}
+
+#[test]
 fn convert_then_sanitize_strips_utm() {
     let fixture = chrome_json_fixture();
     let tmp = tempfile::tempdir().unwrap();

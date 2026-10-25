@@ -35,8 +35,19 @@ which will be **the stability promise**.
   (`lantern_core::parser::parse_chrome_json`), auto-detected by
   `lantern-io::read_bookmark_file`.  Read-only: the profile file is
   never written.
-- **CLI:** `convert <input> -o <output>` writes Netscape HTML from any
-  supported input; `info` and `sanitize` accept JSON too.
+- **Export formats.** Besides Netscape HTML, a copy can be saved as
+  Chrome `Bookmarks` JSON (reads back through the importer; toolbar,
+  "Other bookmarks" and "Mobile bookmarks" map onto Chrome's three
+  roots), a nested Markdown link list, or CSV (title, URL, folder path,
+  ISO 8601 dates; RFC 4180 quoting, a UTF-8 BOM for spreadsheet apps,
+  and cells that would run as formulas prefixed with `'`).  The save
+  dialogs list every format and the extension picks the writer
+  (`lantern_core::emit::export`, `lantern_io::write_bookmark_file_as`).
+  Exporting a single folder now reports success or failure in a toast.
+- **CLI:** `convert <input> -o <output> [--to html|json|markdown|csv]`
+  converts between formats, inferring the format from the output's
+  extension when `--to` is absent; `info` and `sanitize` accept JSON
+  too, and `sanitize -o` follows the extension the same way.
 - **Find duplicates** rule set, built on a new near-duplicate pass
   (`structure.duplicates.near_url`): bookmarks that point at the same
   page, even when their URLs differ in `http`/`https`, `www.`, a

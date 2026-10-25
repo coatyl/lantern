@@ -24,6 +24,7 @@ use crate::error::Result;
 use crate::model::Document;
 
 pub use chrome::parse_chrome_json;
+pub(crate) use chrome::utc_to_chrome_time;
 
 /// Parse a raw byte slice (the full contents of a `.html` bookmark export)
 /// into an in-memory [`Document`].

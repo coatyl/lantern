@@ -14,6 +14,7 @@ import { useDocuments } from "../state/documents";
 import { useToast } from "../hooks/useToast";
 import { useT } from "../i18n/I18nProvider";
 import { ipc } from "../ipc";
+import { SAVE_FILTERS, fileName } from "../state/fileActions";
 import {
   DownloadIcon,
   PencilIcon,
@@ -275,6 +276,8 @@ function ItemDetail({
   onConfirmDelete: () => Promise<void>;
   onRename: (newName: string) => Promise<void>;
 }) {
+  const t = useT();
+  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -332,14 +335,15 @@ function ItemDetail({
     try {
       const fname = (item.title || "folder").replace(/[\\/:*?"<>|]/g, "_");
       const path = await save({
-        filters: [{ name: "HTML bookmark file", extensions: ["html", "htm"] }],
+        filters: SAVE_FILTERS,
         defaultPath: `${fname}.html`,
       });
       if (typeof path === "string") {
         await ipc.export(activeTab, { kind: "subtree", root_id: item.id }, path);
+        toast(t("file.saved", { name: fileName(path) }), "success");
       }
-    } catch {
-      // user cancelled or export failed; silent for now
+    } catch (e) {
+      toast(t("file.saveFailed", { reason: String(e) }), "error");
     } finally {
       setExportingFolder(false);
     }

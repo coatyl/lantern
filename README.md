@@ -43,7 +43,7 @@ Settings and rule sets live in `%APPDATA%\Lantern`. To keep them beside a portab
 2. **Browse** the folder tree, the list of the focused folder, and the details of the selected item. Several files can be open in tabs.
 3. **Run a rule set** from the detail pane on the whole document or just the focused folder. Built-in sets: *Minimal clean*, *Aggressive scrub*, *Full scrub*, and *Find duplicates*, which proposes deleting bookmarks that point at the same page, even when their URLs differ in `http`/`https`, `www.`, a `#fragment`, tracking parameters or parameter order. The rule-set editor lets you build your own.
 4. **Review** the proposed changes. They take over the main area: one card per bookmark or folder with its path and a before/after diff, filters by kind of change, and bulk selection. Destructive changes, including deletions, start unselected. Ctrl+Enter applies, Escape discards, and Ctrl+Z undoes an apply.
-5. **Export** a clean copy to a new HTML file. Lantern refuses to overwrite the file it opened.
+5. **Export** a clean copy to a new file: Netscape HTML (imports into any browser), Chrome `Bookmarks` JSON, a Markdown link list, or CSV for a spreadsheet. Pick the format in the save dialog. Lantern refuses to overwrite the file it opened.
 
 **Tools** in the title bar compare two tabs, merge documents, and run the dead-link checker once it is enabled. Ctrl+K opens a command palette, and **Settings → Keyboard** lists every shortcut.
 
@@ -55,8 +55,11 @@ Settings and rule sets live in `%APPDATA%\Lantern`. To keep them beside a portab
 # Counts and depth of a bookmark file (HTML or Chrome JSON).
 lantern-cli info bookmarks.html
 
-# Chrome Bookmarks JSON (or Netscape HTML) to Netscape HTML.
+# Convert between formats; the output's extension picks the format
+# (.html, .json, .md, .csv), or name it with --to.
 lantern-cli convert Bookmarks -o bookmarks.html
+lantern-cli convert bookmarks.html -o links.md
+lantern-cli convert bookmarks.html -o export.txt --to csv
 
 # Apply a built-in rule set; writes a cleaned copy.
 lantern-cli sanitize bookmarks.html --rule-set full-scrub --output cleaned.html
