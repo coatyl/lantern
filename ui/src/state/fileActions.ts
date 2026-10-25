@@ -25,7 +25,17 @@ const OPEN_FILTERS = [
   { name: "Bookmark files", extensions: OPENABLE_EXTENSIONS },
   { name: "All files", extensions: ["*"] },
 ];
-const SAVE_FILTERS = [{ name: "HTML bookmark file", extensions: ["html", "htm"] }];
+/**
+ * Formats a copy can be saved in. The backend picks the writer from the
+ * chosen file's extension, so the first entry (HTML, which every browser
+ * imports) is the default.
+ */
+export const SAVE_FILTERS = [
+  { name: "HTML bookmark file", extensions: ["html", "htm"] },
+  { name: "Chrome bookmarks (JSON)", extensions: ["json"] },
+  { name: "Markdown link list", extensions: ["md", "markdown"] },
+  { name: "Spreadsheet (CSV)", extensions: ["csv"] },
+];
 
 /** Where each tab's copy was last saved this session. */
 const savedCopyPath = new Map<TabId, string>();

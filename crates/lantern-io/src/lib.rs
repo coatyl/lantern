@@ -17,7 +17,9 @@ pub mod ruleset;
 pub mod rulestore;
 pub mod settings;
 
-pub use bookmark::{read_bookmark_file, write_bookmark_file};
+pub use bookmark::{
+    format_for_path, read_bookmark_file, write_bookmark_file, write_bookmark_file_as,
+};
 pub use error::{IoError, Result};
 pub use logstore::{log_path, read_recent, RawLogLine};
 pub use ruleset::{build_ruleset, read_ruleset, write_ruleset};

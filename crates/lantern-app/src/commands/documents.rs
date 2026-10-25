@@ -12,7 +12,8 @@ use crate::error::{CommandResult, UiError};
 use crate::state::AppState;
 use crate::types::*;
 
-/// Write the document, or one folder of it, as a Netscape bookmark file.
+/// Write the document, or one folder of it, to `path`. The format follows the
+/// extension (`.json`, `.md`, `.csv`, otherwise Netscape HTML).
 ///
 /// `lantern_io` refuses to overwrite the file the document was opened from;
 /// a subtree export keeps the source path so that guard still applies.

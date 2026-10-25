@@ -26,9 +26,9 @@ use lantern_core::sanitize::pass::RuleSet;
 use lantern_core::sanitize::treatment::Treatment;
 use lantern_core::sanitize::treatments::{
     AffiliateTreatment, AuthorSuffixTreatment, ClickIdsTreatment, CustomQpTreatment,
-    DeduplicateTreatment, DemobilizeTreatment, EmailTreatment, EmptyFoldersTreatment,
-    ExactUrlDuplicatesTreatment, FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment,
-    FragmentTrackingTreatment, HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment,
+    DemobilizeTreatment, EmailTreatment, EmptyFoldersTreatment, ExactUrlDuplicatesTreatment,
+    FolderHtmlEntitiesTreatment, FolderWhitespaceTreatment, FragmentTrackingTreatment,
+    HandleTreatment, HtmlEntitiesTreatment, HttpsUpgradeTreatment, NearUrlDuplicatesTreatment,
     RegexFolderTreatment, RegexTitleTreatment, SearchTokensTreatment, SessionTreatment,
     StripFragmentTreatment, UnshortenOfflineTreatment, UserSegmentTreatment, UtmTreatment,
     WhitespaceTreatment,
@@ -178,9 +178,11 @@ fn treatment_from_id(id: &str) -> Option<Box<dyn Treatment>> {
         "folder.regex" => Box::new(RegexFolderTreatment::empty()),
 
         // Cross-field / structure
-        "cross.dedupe" => Box::new(DeduplicateTreatment),
         "cross.empty_folders" => Box::new(EmptyFoldersTreatment),
         "structure.duplicates.exact_url" => Box::new(ExactUrlDuplicatesTreatment),
+        // `cross.dedupe` was folded into the near-duplicate pass; rule sets
+        // saved with the old id load the new pass.
+        "structure.duplicates.near_url" | "cross.dedupe" => Box::new(NearUrlDuplicatesTreatment),
 
         _ => return None,
     };

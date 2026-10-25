@@ -109,12 +109,14 @@ One branch per pull request, named for what it changes:
 - Delete the branch once its pull request is merged or closed. Turn on **Settings → General → Automatically delete head branches** so GitHub does it.
 - `main` is the only long-lived branch.
 
+`npm run branch -- feat/io-firefox-places` checks the name and creates the branch from an up-to-date `origin/main`. CI's `branch-name` job fails a pull request whose branch does not follow the pattern (bot branches such as `dependabot/…` are exempt). The rule itself lives in `scripts/branch-name.mjs`; `node scripts/branch-name.mjs <name>` checks a name without creating anything.
+
 ## Commits and pull requests
 
 - [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<scope>): <subject>`. Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `revert`. Scopes: `core`, `io`, `net`, `app`, `cli`, `ui`, `docs`, `ci`, `release`. Breaking changes use `!` plus a `BREAKING CHANGE:` footer.
 - Rebase on `main` rather than merging it in, and expect a squash merge.
 - Open an issue before starting a feature so scope can be agreed.
-- Every PR description includes a **Privacy impact** line: does it touch the network, the filesystem, logging or user data? Write "none" if not.
+- Every PR description includes a **Privacy impact** line: does it touch the network, the filesystem, logging or user data? Write "none" if not. The pull request template (`.github/pull_request_template.md`) asks for it, with the test checklist; bug reports and feature requests use the forms in `.github/ISSUE_TEMPLATE/`.
 - New behaviour needs tests, bug fixes need a regression test, and user-visible changes need a `CHANGELOG.md` entry.
 
 ## CI

@@ -16,13 +16,16 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Context, Result};
 use clap::{Args, Parser, Subcommand};
 
-use lantern_core::emit::EmitOptions;
+use lantern_core::emit::{EmitOptions, ExportFormat};
 use lantern_core::model::ids::NodeId;
 use lantern_core::model::node::{Folder, Node};
 use lantern_core::sanitize::pass::{run_pass, PassTarget, RuleSet};
 use lantern_core::sanitize::treatment::{Change, ChangeKind};
 use lantern_io::rulestore::{slugify, BUILTIN_RULE_SETS};
-use lantern_io::{build_ruleset, read_bookmark_file, read_ruleset, write_bookmark_file};
+use lantern_io::{
+    build_ruleset, format_for_path, read_bookmark_file, read_ruleset, write_bookmark_file,
+    write_bookmark_file_as,
+};
 
 // ---------------------------------------------------------------------------
 // Command tree
@@ -55,7 +58,7 @@ enum Command {
     Sanitize(SanitizeArgs),
     /// Print structural information about a bookmark file.
     Info(InfoArgs),
-    /// Convert a bookmark file to Netscape HTML.
+    /// Convert a bookmark file to Netscape HTML, Chrome JSON, Markdown or CSV.
     Convert(ConvertArgs),
     /// List the built-in rule sets.
     #[command(name = "rule-sets")]
@@ -103,10 +106,20 @@ struct ConvertArgs {
     /// Path to a Netscape HTML or Chrome Bookmarks JSON file.
     input: PathBuf,
 
-    /// Destination Netscape HTML path. Required so the source is never
-    /// overwritten (Chrome profile `Bookmarks` files stay read-only).
+    /// Destination path. Required so the source is never overwritten
+    /// (Chrome profile `Bookmarks` files stay read-only).
     #[arg(short, long)]
     output: PathBuf,
+
+    /// Output format: html, json, markdown or csv. Defaults to the one the
+    /// output's extension names (.json, .md, .csv), otherwise html.
+    #[arg(long, value_name = "FORMAT", value_parser = parse_format)]
+    to: Option<ExportFormat>,
+}
+
+fn parse_format(name: &str) -> std::result::Result<ExportFormat, String> {
+    ExportFormat::from_extension(name)
+        .ok_or_else(|| format!("unknown format `{name}` (expected html, json, markdown or csv)"))
 }
 
 #[derive(Debug, Args)]
@@ -324,10 +337,11 @@ fn run_convert(args: ConvertArgs) -> Result<()> {
     let doc = read_bookmark_file(&args.input)
         .with_context(|| format!("reading {}", args.input.display()))?;
 
-    write_bookmark_file(&args.output, &doc, &EmitOptions::default())
+    let format = args.to.unwrap_or_else(|| format_for_path(&args.output));
+    write_bookmark_file_as(&args.output, &doc, format, &EmitOptions::default())
         .with_context(|| format!("writing {}", args.output.display()))?;
 
-    println!("wrote {}", args.output.display());
+    println!("wrote {} ({format})", args.output.display());
     Ok(())
 }
 
@@ -360,7 +374,7 @@ fn describe_builtin(name: &str) -> &'static str {
         "Aggressive scrub" => "Minimal clean + session/affiliate/search params, fragment removal, email/handle scrubbing",
         "Full scrub" => "Aggressive scrub + path user segments, host demobilisation, shortener detection, author suffix",
         "Find duplicates" => {
-            "propose deleting exact-URL duplicates, keeping the oldest (or first-seen); \
+            "propose deleting bookmarks that point at the same page, keeping the oldest; \
              dry-run to review — a real run auto-approves deletions"
         }
         _ => "(custom)",

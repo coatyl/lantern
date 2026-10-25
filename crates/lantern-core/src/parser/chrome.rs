@@ -128,6 +128,12 @@ pub(crate) fn chrome_time_to_utc(chrome_micros: i64) -> Option<DateTime<Utc>> {
     DateTime::from_timestamp_micros(unix_micros)
 }
 
+/// Convert UTC to a Chrome-epoch microsecond count (the inverse of
+/// [`chrome_time_to_utc`]).
+pub(crate) fn utc_to_chrome_time(t: DateTime<Utc>) -> i64 {
+    t.timestamp_micros() + CHROME_EPOCH_DELTA_MICROS
+}
+
 // ---------------------------------------------------------------------------
 // Public entry
 // ---------------------------------------------------------------------------

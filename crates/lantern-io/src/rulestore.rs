@@ -57,8 +57,7 @@ pub fn file_path_for(rules_dir: &Path, display_name: &str) -> PathBuf {
 /// The shipped rule sets as `(display name, ordered treatment IDs)`, in
 /// canonical display order.
 ///
-/// Deletion treatments (`structure.duplicates.exact_url`, `cross.dedupe`,
-/// `cross.empty_folders`) stay out of the hygiene sets: duplicate review is
+/// Deletion treatments (`structure.duplicates.*`, `cross.empty_folders`) stay out of the hygiene sets: duplicate review is
 /// its own opt-in rule set.
 pub const BUILTIN_RULE_SETS: &[(&str, &[&str])] = &[
     (
@@ -114,7 +113,7 @@ pub const BUILTIN_RULE_SETS: &[(&str, &[&str])] = &[
             "folder.html_entities",
         ],
     ),
-    ("Find duplicates", &["structure.duplicates.exact_url"]),
+    ("Find duplicates", &["structure.duplicates.near_url"]),
 ];
 
 /// Position of `name` in [`BUILTIN_RULE_SETS`], if it is a built-in.
@@ -313,7 +312,7 @@ mod tests {
         for name in ["Minimal clean", "Aggressive scrub", "Full scrub"] {
             for delete in [
                 "structure.duplicates.exact_url",
-                "cross.dedupe",
+                "structure.duplicates.near_url",
                 "cross.empty_folders",
             ] {
                 assert!(
@@ -324,7 +323,7 @@ mod tests {
         }
         assert_eq!(
             builtin_ids("Find duplicates"),
-            ["structure.duplicates.exact_url"]
+            ["structure.duplicates.near_url"]
         );
     }
 
