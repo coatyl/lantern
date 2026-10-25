@@ -82,18 +82,14 @@ pub fn emit(doc: &Document, opts: &EmitOptions) -> Vec<u8> {
 // ---------------------------------------------------------------------------
 
 fn write_header(buf: &mut String, doc: &Document, le: &str) {
-    let charset = doc.header.charset.as_deref().unwrap_or("UTF-8");
-
     let title = doc.header.title.as_deref().unwrap_or("Bookmarks");
 
     buf.push_str("<!DOCTYPE NETSCAPE-Bookmark-file-1>");
     buf.push_str(le);
-    write!(
-        buf,
-        r#"<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset={}">"#,
-        escape_attr(charset)
-    )
-    .unwrap();
+    // The output is always UTF-8 (input is decoded as UTF-8 too), so the
+    // source's declared charset is not echoed: a file that declared another
+    // encoding would otherwise be mis-decoded by the browser importing it.
+    buf.push_str(r#"<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">"#);
     buf.push_str(le);
     write!(buf, "<TITLE>{}</TITLE>", escape_text(title)).unwrap();
     buf.push_str(le);
@@ -400,12 +396,18 @@ mod tests {
     }
 
     #[test]
-    fn header_charset_is_escaped() {
+    fn header_always_declares_utf8() {
         let mut doc = parse(MINIMAL).unwrap();
-        doc.header.charset = Some(r#"x"><b>"#.into());
-        let emitted = emit(&doc, &EmitOptions::default());
-        let text = std::str::from_utf8(&emitted).unwrap();
-        assert!(text.contains("charset=x&quot;&gt;&lt;b&gt;\">"), "{text}");
+        for declared in ["windows-1252", r#"x"><b>"#] {
+            doc.header.charset = Some(declared.into());
+            let emitted = emit(&doc, &EmitOptions::default());
+            let text = std::str::from_utf8(&emitted).unwrap();
+            assert!(
+                text.contains(r#"CONTENT="text/html; charset=UTF-8">"#),
+                "{text}"
+            );
+            assert!(!text.contains(declared), "{text}");
+        }
     }
 
     #[test]

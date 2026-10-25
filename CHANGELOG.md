@@ -113,6 +113,9 @@ which will be **the stability promise**.
 
 ### Fixed
 
+- Exported HTML always declares `charset=UTF-8`.  It used to echo the
+  source file's declared charset while writing UTF-8 bytes, so a file
+  that declared another encoding imported with garbled non-ASCII titles.
 - A folder or selection pass could propose deleting bookmarks outside
   its target: document-level treatments (duplicates) now only keep
   changes to in-scope nodes.
